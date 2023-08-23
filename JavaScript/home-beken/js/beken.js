@@ -19,7 +19,6 @@ function router() {
 
   return viewLanding();
 }
-//let run = router();
 
 
 function viewLanding() {
@@ -146,7 +145,6 @@ function addLocalItems() {
    localStorage.setItem("beken-token", beken_token);
    localStorage.setItem("beken-url", beken_url);
 
-   //history.pushState({page: 'addLocalStore'}, "addLocalStore", "?info=added");
    history.pushState({page: 'addLocalStore'}, "addLocalStore", "?");
    location.reload();
 }
@@ -157,12 +155,13 @@ function getPublicIP() {
     var ip_service_url = "https://api.ipify.org?format=json"
 
     var ip_service = localStorage.getItem("ip-service");
-    if (!ip_service) {
+    if (ip_service) {
+        ip_service_url = ip_service
+    } else {
         localStorage.setItem("ip-service", ip_service_url);
-        ip_service = ip_service_url
     }
 
-    return fetch(ip_service)
+    return fetch(ip_service_url)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
