@@ -12,6 +12,7 @@ import (
     "sync"
 
     "os"
+    "os/exec"
 
     "database/sql"
 
@@ -93,7 +94,8 @@ func httpHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
 
         clientIP := getClientIP(r)
-        fmt.Printf("Received request from IP: %s\n", clientIP)
+        //fmt.Printf("Received request from IP: %s\n", clientIP)
+        log.Printf("Received request from IP: %s\n", clientIP)
 
         setCorsHeaders(w) // Set CORS headers
         if r.Method == http.MethodOptions {
@@ -102,26 +104,24 @@ func httpHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
             return
         }
 
-        header_token := r.Header.Get("beken-token")
-        if header_token == "" {
-            //http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
-            http.Error(w, "No beken-token", http.StatusBadRequest)
-            return
-        }
-
-        if !tokenExistsInDBWithCache(db, cache, header_token) {
-            //fmt.Println("Not in sqlite3")
-            http.Error(w, "Unknown beken-token", http.StatusBadRequest)
-            return
-        }
-
-
         if r.Method != http.MethodPost {
             //http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
             http.Error(w, "", http.StatusMethodNotAllowed)
             return
         }
 
+        header_token := r.Header.Get("beken-token")
+        if header_token == "" {
+            //http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+            http.Error(w, "", http.StatusBadRequest)
+            return
+        }
+
+        if !tokenExistsInDBWithCache(db, cache, header_token) {
+            //fmt.Println("Not in sqlite3")
+            http.Error(w, "", http.StatusBadRequest)
+            return
+        }
 
         bodyBytes, err := ioutil.ReadAll(r.Body)
         if err != nil {
@@ -136,11 +136,16 @@ func httpHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
             return
         }
 
+        //success, run commands
+        ipAllow(requestBody.IP, 993)
+        ipAllow(requestBody.IP, 465)
+
         response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
         w.Header().Set("Content-Type", "application/json")
         w.Write([]byte(response))
     }
 }
+
 
 func getClientIP(r *http.Request) string {
 	// Check for a proxy set client IP
@@ -176,7 +181,7 @@ func createDb() error {
             return create
         }
 
-        fmt.Printf("Created beken.db \n")
+        log.Printf("Created beken.db \n")
     }
     return nil
 }
@@ -200,25 +205,39 @@ func CreateTables(db *sql.DB) error {
 }
 
 
+func ipAllow(ip string, tcpPort int) {
+    cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ALLOW", ip, tcpPort)
+    exec.Command("bash", "-c", cmd).Run()
+    log.Printf(cmd)
+}
+
 
 func main() {
-
-    err := createDb()
+    // Setup logger to write to beken.log
+    logFile, err := os.OpenFile("beken.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
     if err != nil {
         panic(err)
+    }
+    defer logFile.Close()
+
+    logger := log.New(logFile, "", log.LstdFlags)
+    log.SetOutput(logFile) // Redirect standard logger to the file
+
+    err = createDb()
+    if err != nil {
+        logger.Fatalf("Failed to create the database: %v", err) // Log and exit
     }
 
     database, err := sql.Open("sqlite3", "beken.db")
     if err != nil {
-        log.Fatalf("Failed to open the database: %v", err) // Log and exit
+        logger.Fatalf("Failed to open the database: %v", err) // Log and exit
     }
     defer database.Close()
 
     cache := NewCache(30 * time.Minute)
     http.HandleFunc("/beken", httpHandler(database, cache))
     port := "9480"
-    fmt.Printf("Starting server on :%s\n", port)
-    log.Fatal(http.ListenAndServe(":"+port, nil)) // Log any error from the server
+    logger.Printf("Starting server on :%s\n", port)
+    logger.Fatal(http.ListenAndServe(":"+port, nil)) // Log any error from the server
 }
-
 
