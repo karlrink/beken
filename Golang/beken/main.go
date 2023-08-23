@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"net/http"
+    "encoding/json"
+    "fmt"
+    "io/ioutil"
+    "net/http"
     "strings"
 
     "time"
@@ -18,6 +18,8 @@ import (
 
     _ "github.com/mattn/go-sqlite3"
 )
+
+var version = "0.0.0.🐕-2023-08-23"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -137,8 +139,9 @@ func httpHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
         }
 
         //success, run commands
-        ipAllow(requestBody.IP, 993)
-        ipAllow(requestBody.IP, 465)
+        //ipAllow(requestBody.IP, 993)
+        //ipAllow(requestBody.IP, 465)
+        ipAllow(requestBody.IP)
 
         response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
         w.Header().Set("Content-Type", "application/json")
@@ -205,8 +208,10 @@ func CreateTables(db *sql.DB) error {
 }
 
 
-func ipAllow(ip string, tcpPort int) {
-    cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ACCEPT", ip, tcpPort)
+//func ipAllow(ip string, tcpPort int) {
+//    cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ACCEPT", ip, tcpPort)
+func ipAllow(ip string) {
+    cmd := fmt.Sprintf("iptables -I INPUT -s %s -j ACCEPT", ip)
     exec.Command("bash", "-c", cmd).Run()
     log.Printf(cmd)
 }
@@ -237,7 +242,7 @@ func main() {
     cache := NewCache(30 * time.Minute)
     http.HandleFunc("/beken", httpHandler(database, cache))
     port := "9480"
-    logger.Printf("Starting server on :%s\n", port)
+    logger.Printf("Starting server %s on port:%s\n", version, port)
     logger.Fatal(http.ListenAndServe(":"+port, nil)) // Log any error from the server
 }
 
