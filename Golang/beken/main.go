@@ -206,7 +206,7 @@ func CreateTables(db *sql.DB) error {
 
 
 func ipAllow(ip string, tcpPort int) {
-    cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ALLOW", ip, tcpPort)
+    cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ACCEPT", ip, tcpPort)
     exec.Command("bash", "-c", cmd).Run()
     log.Printf(cmd)
 }
