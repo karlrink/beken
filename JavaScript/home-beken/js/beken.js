@@ -1,6 +1,6 @@
 // JavaScript
 
-const version = 'beken.js-000';
+const version = 'beken.js-001';
 const start = performance.now();
 
 const container = document.getElementById('container');
@@ -12,8 +12,8 @@ function router() {
       return showInfo();
   }
 
-  var beken_url = localStorage.getItem("beken-url");
-  if (!beken_url) {
+  var beken_host = localStorage.getItem("beken-host");
+  if (!beken_host) {
       return viewAddPage();
   }
 
@@ -55,7 +55,7 @@ function viewLanding() {
 // This function will make the POST request
 function sendPostRequest(ipAddress) {
     var beken_token = localStorage.getItem("beken-token");
-    var beken_url = localStorage.getItem("beken-url");
+    var beken_host = localStorage.getItem("beken-host");
 
     var headers = new Headers();
     headers.append('Content-Type', 'application/json');
@@ -71,14 +71,14 @@ function sendPostRequest(ipAddress) {
         body: body
     };
 
-    console.log(beken_url);
+    console.log(beken_host + "/beken/post");
 
     var timeoutDuration = 5000; // 5 seconds
     var timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error("Request timed out after " + timeoutDuration + "ms")), timeoutDuration);
     });
 
-    Promise.race([fetch(beken_url, requestOptions), timeoutPromise])
+    Promise.race([fetch(beken_host + "/beken/post", requestOptions), timeoutPromise])
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
@@ -140,10 +140,10 @@ window.addLocalStore = function() {
 
 function addLocalItems() {
    const beken_token  = window.prompt("beken-token: ");
-   const beken_url = window.prompt("beken-url: ");
+   const beken_host = window.prompt("beken-host: ");
 
    localStorage.setItem("beken-token", beken_token);
-   localStorage.setItem("beken-url", beken_url);
+   localStorage.setItem("beken-host", beken_host);
 
    history.pushState({page: 'addLocalStore'}, "addLocalStore", "?");
    location.reload();
@@ -152,7 +152,10 @@ function addLocalItems() {
 
 function getPublicIP() {
 
-    var ip_service_url = "https://api.ipify.org?format=json"
+    var beken_host = localStorage.getItem("beken-host");
+
+    //var ip_service_url = "https://api.ipify.org?format=json"
+    var ip_service_url = beken_host + "/beken/ip"
 
     var ip_service = localStorage.getItem("ip-service");
     if (ip_service) {
