@@ -6,6 +6,7 @@ import (
     "io/ioutil"
     "net/http"
     "strings"
+    "net"
 
     "time"
     "log"
@@ -19,7 +20,7 @@ import (
     _ "github.com/mattn/go-sqlite3"
 )
 
-var version = "0.0.0.🐕-2023-08-23"
+var version = "0.0.0.🐕-2023-08-23-1"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -92,10 +93,16 @@ func setCorsHeaders(w http.ResponseWriter) {
 }
 
 
-func httpHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
 
-        clientIP := getClientIP(r)
+        clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+        if err != nil {
+            // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
+            clientIP = r.RemoteAddr
+        }
+
+        //clientIP := getClientIP(r)
         //fmt.Printf("Received request from IP: %s\n", clientIP)
         log.Printf("Received request from IP: %s\n", clientIP)
 
@@ -139,8 +146,6 @@ func httpHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
         }
 
         //success, run commands
-        //ipAllow(requestBody.IP, 993)
-        //ipAllow(requestBody.IP, 465)
         ipAllow(requestBody.IP)
 
         response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
@@ -149,6 +154,34 @@ func httpHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     }
 }
 
+func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+
+        setCorsHeaders(w) // Set CORS headers
+        if r.Method == http.MethodOptions {
+            // Pre-flight request. Reply successfully:
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+
+        if r.Method != http.MethodGet {
+            //http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
+            http.Error(w, "", http.StatusMethodNotAllowed)
+            return
+        }
+
+        clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+        if err != nil {
+            // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
+            clientIP = r.RemoteAddr
+        }
+
+        response := fmt.Sprintf(`{"ip": "%s"}`, clientIP)
+        w.Header().Set("Content-Type", "application/json")
+        w.Write([]byte(response))
+
+    }
+}
 
 func getClientIP(r *http.Request) string {
 	// Check for a proxy set client IP
@@ -240,7 +273,8 @@ func main() {
     defer database.Close()
 
     cache := NewCache(30 * time.Minute)
-    http.HandleFunc("/beken", httpHandler(database, cache))
+    http.HandleFunc("/beken/post", httpPostHandler(database, cache))
+    http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
     port := "9480"
     logger.Printf("Starting server %s on port:%s\n", version, port)
     logger.Fatal(http.ListenAndServe(":"+port, nil)) // Log any error from the server
