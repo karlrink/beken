@@ -6,7 +6,7 @@ import (
     "io/ioutil"
     "net/http"
     "strings"
-    "net"
+    //"net"
 
     "time"
     "log"
@@ -20,7 +20,7 @@ import (
     _ "github.com/mattn/go-sqlite3"
 )
 
-var version = "0.0.0.🐕-2023-08-23-1"
+var version = "0.0.0.🐕-2023-08-23-2"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -96,15 +96,14 @@ func setCorsHeaders(w http.ResponseWriter) {
 func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
 
-        clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
-        if err != nil {
-            // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
-            clientIP = r.RemoteAddr
-        }
+        //clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+        //if err != nil {
+        //    // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
+        //    clientIP = r.RemoteAddr
+        //}
 
-        //clientIP := getClientIP(r)
-        //fmt.Printf("Received request from IP: %s\n", clientIP)
-        log.Printf("Received request from IP: %s\n", clientIP)
+        clientIP := getClientIP(r)
+        log.Printf("Received POST request from IP: %s\n", clientIP)
 
         setCorsHeaders(w) // Set CORS headers
         if r.Method == http.MethodOptions {
@@ -157,6 +156,9 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
 
+        clientIP := getClientIP(r)
+        log.Printf("Received GET request from IP: %s\n", clientIP)
+
         setCorsHeaders(w) // Set CORS headers
         if r.Method == http.MethodOptions {
             // Pre-flight request. Reply successfully:
@@ -170,11 +172,11 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
             return
         }
 
-        clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
-        if err != nil {
-            // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
-            clientIP = r.RemoteAddr
-        }
+        //clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+        //if err != nil {
+        //    // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
+        //    clientIP = r.RemoteAddr
+        //}
 
         response := fmt.Sprintf(`{"ip": "%s"}`, clientIP)
         w.Header().Set("Content-Type", "application/json")
