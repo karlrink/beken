@@ -13,14 +13,14 @@ import (
     "sync"
 
     "os"
-    "os/exec"
+    //"os/exec"
 
     "database/sql"
 
     _ "github.com/mattn/go-sqlite3"
 )
 
-var version = "0.0.0.🐕-2023-08-23-2"
+var version = "0.0.0.🐕-2023-08-24"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -96,14 +96,8 @@ func setCorsHeaders(w http.ResponseWriter) {
 func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
 
-        //clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
-        //if err != nil {
-        //    // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
-        //    clientIP = r.RemoteAddr
-        //}
-
         clientIP := getClientIP(r)
-        log.Printf("Received POST request from IP: %s\n", clientIP)
+        log.Printf("Received POST /post request from IP: %s\n", clientIP)
 
         setCorsHeaders(w) // Set CORS headers
         if r.Method == http.MethodOptions {
@@ -145,7 +139,16 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
         }
 
         //success, run commands
-        ipAllow(requestBody.IP)
+        //ipAllow(requestBody.IP)
+        //save, err := db.query("INSERT INTO ips (Ip,Data) VALUES (requestBody.IP, 'Ip Entry')")
+
+        // Save the IP to the database
+        _, err = db.Exec("INSERT INTO ips (Ip, Data) VALUES (?, 'Ip Entry')", requestBody.IP)
+        if err != nil {
+            log.Printf("Failed to save IP to database: %v\n", err)
+            http.Error(w, "Internal server error", http.StatusInternalServerError)
+            return
+        }
 
         response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
         w.Header().Set("Content-Type", "application/json")
@@ -157,7 +160,7 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
 
         clientIP := getClientIP(r)
-        log.Printf("Received GET request from IP: %s\n", clientIP)
+        log.Printf("Received GET /ip request from IP: %s\n", clientIP)
 
         setCorsHeaders(w) // Set CORS headers
         if r.Method == http.MethodOptions {
@@ -172,11 +175,18 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
             return
         }
 
-        //clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
-        //if err != nil {
-        //    // handle the error if you wish. For simplicity, we'll just use the whole RemoteAddr
-        //    clientIP = r.RemoteAddr
-        //}
+        header_token := r.Header.Get("beken-token")
+        if header_token == "" {
+            //http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+            http.Error(w, "", http.StatusBadRequest)
+            return
+        }
+
+        if !tokenExistsInDBWithCache(db, cache, header_token) {
+            //fmt.Println("Not in sqlite3")
+            http.Error(w, "", http.StatusBadRequest)
+            return
+        }
 
         response := fmt.Sprintf(`{"ip": "%s"}`, clientIP)
         w.Header().Set("Content-Type", "application/json")
@@ -184,6 +194,49 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
     }
 }
+
+/*
+func httpClientHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+
+        clientIP := getClientIP(r)
+        log.Printf("Received GET /client request from IP: %s\n", clientIP)
+
+        setCorsHeaders(w) // Set CORS headers
+        if r.Method == http.MethodOptions {
+            // Pre-flight request. Reply successfully:
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+
+        if r.Method != http.MethodGet {
+            http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
+            //http.Error(w, "", http.StatusMethodNotAllowed)
+            return
+        }
+
+        header_token := r.Header.Get("beken-token")
+        if header_token == "" {
+            http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+            //http.Error(w, "", http.StatusBadRequest)
+            return
+        }
+
+        if !tokenExistsInDBWithCache(db, cache, header_token) {
+            //fmt.Println("Not in sqlite3")
+            //http.Error(w, "", http.StatusBadRequest)
+            http.Error(w, "No beken-token found", http.StatusBadRequest)
+            return
+        }
+
+        response := fmt.Sprintf(`{"ip": "%s","client":true}`, clientIP)
+        w.Header().Set("Content-Type", "application/json")
+        w.Write([]byte(response))
+
+    }
+}
+*/
+
 
 func getClientIP(r *http.Request) string {
 	// Check for a proxy set client IP
@@ -224,6 +277,7 @@ func createDb() error {
     return nil
 }
 
+
 func CreateTables(db *sql.DB) error {
 
     tokens_table := `CREATE TABLE tokens (
@@ -239,16 +293,43 @@ func CreateTables(db *sql.DB) error {
         return err
     }
 
+    ips_table := `CREATE TABLE ips (
+        "Ip" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+    query2, err := db.Prepare(ips_table)
+    if err != nil {
+        return err
+    }
+    _, err = query2.Exec()
+    if err != nil {
+        return err
+    }
+
     return nil
 }
 
 
 //func ipAllow(ip string, tcpPort int) {
 //    cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ACCEPT", ip, tcpPort)
-func ipAllow(ip string) {
-    cmd := fmt.Sprintf("iptables -I INPUT -s %s -j ACCEPT", ip)
-    exec.Command("bash", "-c", cmd).Run()
-    log.Printf(cmd)
+//func ipAllow(ip string) {
+//    cmd := fmt.Sprintf("iptables -I INPUT -s %s -j ACCEPT", ip)
+//    exec.Command("bash", "-c", cmd).Run()
+//    log.Printf(cmd)
+//}
+
+
+func contentTypeSetter(next http.Handler) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        // Check file extensions and set MIME types accordingly
+        if strings.HasSuffix(r.URL.Path, ".css") {
+            w.Header().Set("Content-Type", "text/css")
+        } else if strings.HasSuffix(r.URL.Path, ".js") {
+            w.Header().Set("Content-Type", "application/javascript")
+        }
+        // Call the next handler (in this case, the FileServer)
+        next.ServeHTTP(w, r)
+    }
 }
 
 
@@ -277,6 +358,10 @@ func main() {
     cache := NewCache(30 * time.Minute)
     http.HandleFunc("/beken/post", httpPostHandler(database, cache))
     http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
+
+    // Serve static content
+    http.Handle("/beken/client/", contentTypeSetter(http.StripPrefix("/beken/client", http.FileServer(http.Dir("./static_content")))))
+
     port := "9480"
     logger.Printf("Starting server %s on port:%s\n", version, port)
     logger.Fatal(http.ListenAndServe(":"+port, nil)) // Log any error from the server

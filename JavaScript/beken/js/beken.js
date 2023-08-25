@@ -1,8 +1,9 @@
 // JavaScript
 
-const version = 'beken.js-001';
+const version = 'beken.js-002';
 const start = performance.now();
 
+// Get a reference to the container div
 const container = document.getElementById('container');
 
 const params = new URLSearchParams(location.search);
@@ -22,14 +23,11 @@ function router() {
 
 
 function viewLanding() {
-    document.title = 'Home-Beken';
+    document.title = 'Beken';
 
     // Create the Beken button and set up its click event
     const bekenButton = document.createElement('button');
     bekenButton.innerText = 'Beken';
-
-    // Get a reference to the container div
-    //const container = document.getElementById('container');
 
     // Append the button to the container div
     container.appendChild(bekenButton);
@@ -95,7 +93,7 @@ function sendPostRequest(ipAddress) {
 
 
 function viewAddPage() {
-    document.title = 'Home-Beken:Add';
+    document.title = 'Beken:Add';
 
     let html = '';
     html += '<div><button id="addLocalItems">Add Beken</button></div>';
@@ -152,6 +150,7 @@ function addLocalItems() {
 
 function getPublicIP() {
 
+    var beken_token = localStorage.getItem("beken-token");
     var beken_host = localStorage.getItem("beken-host");
 
     //var ip_service_url = "https://api.ipify.org?format=json"
@@ -164,7 +163,16 @@ function getPublicIP() {
         localStorage.setItem("ip-service", ip_service_url);
     }
 
-    return fetch(ip_service_url)
+    // Set up fetch options to include headers
+    var fetchOptions = {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'beken-token': beken_token
+        }
+    };
+
+    return fetch(ip_service_url, fetchOptions)
         .then(response => {
             if (!response.ok) {
                 throw new Error('Network response was not ok');
