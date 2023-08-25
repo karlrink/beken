@@ -7,6 +7,7 @@ import (
     "net/http"
     "strings"
     //"net"
+    "path/filepath"
 
     "time"
     "log"
@@ -20,7 +21,7 @@ import (
     _ "github.com/mattn/go-sqlite3"
 )
 
-var version = "0.0.0.🐕-2023-08-24-2"
+var version = "0.0.0.🐕-2023-08-24-3"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -334,8 +335,17 @@ func contentTypeSetter(next http.Handler) http.HandlerFunc {
 
 
 func main() {
+
+	basePath := ""
+	if len(os.Args) > 1 {
+		basePath = os.Args[1]
+	}
+
+	bekenLog := filepath.Join(basePath, "beken.log")
+	bekenDb := filepath.Join(basePath, "beken.db")
+
     // Setup logger to write to beken.log
-    logFile, err := os.OpenFile("beken.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+    logFile, err := os.OpenFile(bekenLog, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
     if err != nil {
         panic(err)
     }
@@ -349,7 +359,7 @@ func main() {
         logger.Fatalf("Failed to create the database: %v", err) // Log and exit
     }
 
-    database, err := sql.Open("sqlite3", "beken.db")
+    database, err := sql.Open("sqlite3", bekenDb)
     if err != nil {
         logger.Fatalf("Failed to open the database: %v", err) // Log and exit
     }
