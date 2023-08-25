@@ -262,16 +262,16 @@ func getClientIP(r *http.Request) string {
 }
 
 
-func createDb(dbFile string) error {
+func createDb(bekenDb string) error {
 
-    if _, err := os.Stat(dbFile); os.IsNotExist(err) {
-        file, err := os.Create(dbFile)
+    if _, err := os.Stat(bekenDb); os.IsNotExist(err) {
+        file, err := os.Create(bekenDb)
         if err != nil {
             return err
         }
         file.Close()
 
-        database, err := sql.Open("sqlite3", dbFile)
+        database, err := sql.Open("sqlite3", bekenDb)
         if err != nil {
             return err
         }
@@ -282,7 +282,7 @@ func createDb(dbFile string) error {
             return create
         }
 
-        log.Printf("Created %s \n", dbFile)
+        log.Printf("Created %s \n", bekenDb)
     }
     return nil
 }
