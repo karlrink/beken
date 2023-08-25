@@ -21,7 +21,7 @@ import (
     _ "github.com/mattn/go-sqlite3"
 )
 
-var version = "0.0.0.🐕-2023-08-24"
+var version = "0.0.0.🐕-2023-08-25"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -312,6 +312,32 @@ func CreateTables(db *sql.DB) error {
         return err
     }
     _, err = query2.Exec()
+    if err != nil {
+        return err
+    }
+
+    configs_table := `CREATE TABLE configs (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" JSON,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+    query3, err := db.Prepare(configs_table)
+    if err != nil {
+        return err
+    }
+    _, err = query3.Exec()
+    if err != nil {
+        return err
+    }
+
+    procs_table := `CREATE TABLE procs (
+        "Name" TEXT,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+    query4, err := db.Prepare(procs_table)
+    if err != nil {
+        return err
+    }
+    _, err = query4.Exec()
     if err != nil {
         return err
     }
