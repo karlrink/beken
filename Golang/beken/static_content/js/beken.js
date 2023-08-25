@@ -1,6 +1,6 @@
 // JavaScript
 
-const version = 'beken.js-003';
+const version = 'beken.js-004';
 const start = performance.now();
 
 // Get a reference to the container div
@@ -50,6 +50,10 @@ function viewLanding() {
     .catch(error => {
         console.error('There was an error:', error);
     });
+
+    setTimeout(function(){
+        window.location.reload();
+    }, 30000); // 1000 1s
 
 }
 
@@ -186,7 +190,8 @@ function getPublicIP() {
     return fetch(ip_service_url, fetchOptions)
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                //throw new Error('Network response was not ok');
+                throw new Error(`Status ${response.status}: ${response.statusText}`);
             }
             return response.json();
         })
@@ -195,7 +200,12 @@ function getPublicIP() {
                 ip: data.ip,
                 exists: data.exists
             };
+        })
+        .catch(error => {
+            // Display the error message in the browser
+            document.getElementById('container').innerText = error.message;
         });
+
 }
 
 
