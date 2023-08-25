@@ -262,16 +262,16 @@ func getClientIP(r *http.Request) string {
 }
 
 
-func createDb() error {
+func createDb(dbFile string) error {
 
-    if _, err := os.Stat("beken.db"); os.IsNotExist(err) {
-        file, err := os.Create("beken.db")
+    if _, err := os.Stat(dbFile); os.IsNotExist(err) {
+        file, err := os.Create(dbFile)
         if err != nil {
             return err
         }
         file.Close()
 
-        database, err := sql.Open("sqlite3", "beken.db")
+        database, err := sql.Open("sqlite3", dbFile)
         if err != nil {
             return err
         }
@@ -282,7 +282,7 @@ func createDb() error {
             return create
         }
 
-        log.Printf("Created beken.db \n")
+        log.Printf("Created %s \n", dbFile)
     }
     return nil
 }
@@ -354,7 +354,7 @@ func main() {
     logger := log.New(logFile, "", log.LstdFlags)
     log.SetOutput(logFile) // Redirect standard logger to the file
 
-    err = createDb()
+    err = createDb(bekenDb)
     if err != nil {
         logger.Fatalf("Failed to create the database: %v", err) // Log and exit
     }
