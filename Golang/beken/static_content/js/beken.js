@@ -32,7 +32,6 @@ function viewLanding() {
     // Append the button to the container div
     container.appendChild(bekenButton);
 
-
     getPublicIP()
     .then(({ ip, exists }) => {
         console.log('Your IP is:', ip);
@@ -51,11 +50,23 @@ function viewLanding() {
         console.error('There was an error:', error);
     });
 
-    setTimeout(function(){
-        window.location.reload();
-    }, 30000); // 1000 1s
+    //setTimeout(function(){
+    //    window.location.reload();
+    //}, 30000); // 1000 1s
 
+    const htmlH2 = document.createElement('h2');
+    container.appendChild(htmlH2);
+
+    let timer= 1;
+
+    setInterval(() => {
+        document.querySelector('h2').innerText= timer;
+        timer++;
+        if(timer > 30)
+            location.reload();
+    }, 1000);
 }
+
 
 // This function will make the POST request
 function sendPostRequest(ipAddress) {
