@@ -20,7 +20,7 @@ import (
     _ "github.com/mattn/go-sqlite3"
 )
 
-var version = "0.0.0.🐕-2023-08-24"
+var version = "0.0.0.🐕-2023-08-24-2"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -85,6 +85,18 @@ func tokenExistsInDBWithCache(db *sql.DB, cache *Cache, token string) bool {
 }
 
 
+func ipExistsInDB(db *sql.DB, ip string) bool {
+    var exists bool
+    err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM ips WHERE ip=?)", ip).Scan(&exists)
+    if err != nil {
+        log.Printf("Error querying the database for IP: %v\n", err)
+        return false
+    }
+    return exists
+}
+
+
+
 func setCorsHeaders(w http.ResponseWriter) {
 	// You can change the value of the headers to fit your application needs
 	w.Header().Set("Access-Control-Allow-Origin", "*") // You should switch "*" to specific origins in production.
@@ -121,7 +133,8 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
         if !tokenExistsInDBWithCache(db, cache, header_token) {
             //fmt.Println("Not in sqlite3")
-            http.Error(w, "", http.StatusBadRequest)
+            //http.Error(w, "", http.StatusBadRequest)
+            http.Error(w, "Unauthorized request", http.StatusUnauthorized)
             return
         }
 
@@ -145,16 +158,29 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
         // Save the IP to the database
         _, err = db.Exec("INSERT INTO ips (Ip, Data) VALUES (?, 'Ip Entry')", requestBody.IP)
         if err != nil {
+            if strings.Contains(err.Error(), "UNIQUE constraint failed: ips.Ip") {
+                //response := fmt.Sprintf("IP address %s is already in the database", requestBody.IP)
+                response := fmt.Sprintf(`{"beken": "%s", "exists": true}`, requestBody.IP)
+                w.Header().Set("Content-Type", "application/json")
+                w.WriteHeader(http.StatusOK)  // Send a 200 OK status
+                w.Write([]byte(response))
+                log.Printf("Isert IP attempt by %s \n", clientIP)
+                return
+            }
+
             log.Printf("Failed to save IP to database: %v\n", err)
             http.Error(w, "Internal server error", http.StatusInternalServerError)
             return
         }
+        log.Printf("Isert IP %s \n", requestBody.IP)
 
         response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
         w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)  // Send a 200 OK status
         w.Write([]byte(response))
     }
 }
+
 
 func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
@@ -184,58 +210,41 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
         if !tokenExistsInDBWithCache(db, cache, header_token) {
             //fmt.Println("Not in sqlite3")
-            http.Error(w, "", http.StatusBadRequest)
+            //http.Error(w, "", http.StatusBadRequest)
+            http.Error(w, "Unauthorized request", http.StatusUnauthorized)
             return
         }
 
-        response := fmt.Sprintf(`{"ip": "%s"}`, clientIP)
+       /* 
+        bodyBytes, err := ioutil.ReadAll(r.Body)
+        if err != nil {
+            http.Error(w, "Failed to read body", http.StatusInternalServerError)
+            return
+        }
+
+        var requestBody RequestBody
+        err = json.Unmarshal(bodyBytes, &requestBody)
+        if err != nil {
+            http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+            return
+        }
+        */
+
+        if !ipExistsInDB(db, clientIP) {
+            response := fmt.Sprintf(`{"ip": "%s", "exists": false}`, clientIP)
+            w.Header().Set("Content-Type", "application/json")
+            w.WriteHeader(http.StatusOK)  // Send a 200 OK status
+            w.Write([]byte(response))
+            return
+        }
+
+        response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
         w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusOK)  // Send a 200 OK status
         w.Write([]byte(response))
 
     }
 }
-
-/*
-func httpClientHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-
-        clientIP := getClientIP(r)
-        log.Printf("Received GET /client request from IP: %s\n", clientIP)
-
-        setCorsHeaders(w) // Set CORS headers
-        if r.Method == http.MethodOptions {
-            // Pre-flight request. Reply successfully:
-            w.WriteHeader(http.StatusOK)
-            return
-        }
-
-        if r.Method != http.MethodGet {
-            http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
-            //http.Error(w, "", http.StatusMethodNotAllowed)
-            return
-        }
-
-        header_token := r.Header.Get("beken-token")
-        if header_token == "" {
-            http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
-            //http.Error(w, "", http.StatusBadRequest)
-            return
-        }
-
-        if !tokenExistsInDBWithCache(db, cache, header_token) {
-            //fmt.Println("Not in sqlite3")
-            //http.Error(w, "", http.StatusBadRequest)
-            http.Error(w, "No beken-token found", http.StatusBadRequest)
-            return
-        }
-
-        response := fmt.Sprintf(`{"ip": "%s","client":true}`, clientIP)
-        w.Header().Set("Content-Type", "application/json")
-        w.Write([]byte(response))
-
-    }
-}
-*/
 
 
 func getClientIP(r *http.Request) string {
@@ -308,15 +317,6 @@ func CreateTables(db *sql.DB) error {
 
     return nil
 }
-
-
-//func ipAllow(ip string, tcpPort int) {
-//    cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ACCEPT", ip, tcpPort)
-//func ipAllow(ip string) {
-//    cmd := fmt.Sprintf("iptables -I INPUT -s %s -j ACCEPT", ip)
-//    exec.Command("bash", "-c", cmd).Run()
-//    log.Printf(cmd)
-//}
 
 
 func contentTypeSetter(next http.Handler) http.HandlerFunc {

@@ -32,22 +32,25 @@ function viewLanding() {
     // Append the button to the container div
     container.appendChild(bekenButton);
 
+
     getPublicIP()
-    .then(ip => {
+    .then(({ ip, exists }) => {
         console.log('Your IP is:', ip);
+        console.log('Exists value is:', exists);
 
         // Set the button's click event here after IP is obtained
         bekenButton.addEventListener('click', () => sendPostRequest(ip));
 
         // Create a div for the IP and append it
         const ipDiv = document.createElement('div');
-        ipDiv.innerText = ip;
+        ipDiv.innerText = `IP: ${ip} - Exists: ${exists}`;
         container.appendChild(ipDiv);
 
     })
     .catch(error => {
         console.error('There was an error:', error);
     });
+
 }
 
 // This function will make the POST request
@@ -188,7 +191,10 @@ function getPublicIP() {
             return response.json();
         })
         .then(data => {
-            return data.ip;
+            return {
+                ip: data.ip,
+                exists: data.exists
+            };
         });
 }
 
