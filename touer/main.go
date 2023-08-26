@@ -1,47 +1,116 @@
 package main
 
 import (
-  "database/sql"
-  "fmt"
-  "log"
-  "os"
-  "time"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"time"
 
-  "io/ioutil"
-  "strconv"
+	"io/ioutil"
+	"strconv"
 
-  _ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 )
 
+var version = "0.0.0.dev-0"
 
+func usage() string {
 
-const cacheFileName = "last_processed_id.txt"
+	usage := `Usage: ` + os.Args[0] + ` </path/db> [option]
+
+  --help|-help|help           Display this help message
+  --version|-version|version  Display version
+
+Options:
+
+  list-tables
+
+  proc-ips
+
+  list-ips
+  add-ip ip
+  del-ip ip
+
+  list-tokens
+  add-token token
+  del-token token
+
+  list-configs
+  add-config name json
+  del-config name
+
+`
+	//fmt.Println(usage)
+	return usage
+}
 
 func main() {
+	//fmt.Println(len(os.Args))
+
 	if len(os.Args) < 2 {
-		log.Fatal("Usage: <program_name> <path_to_db>")
+		fmt.Println(usage())
+		return
+	}
+
+	switch os.Args[1] {
+	case "--help", "-help", "help":
+		fmt.Println(usage())
+		return
+	case "--version", "-version", "version":
+		fmt.Println("Version:", version)
+		return
 	}
 
 	dbPath := os.Args[1]
 
 	// Check if the file exists
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
-		log.Fatalf("File not found: %s", dbPath)
+		//log.Fatalf("File not found: %s", dbPath)
+		fmt.Fprintf(os.Stderr, "File not found: %s\n", dbPath)
+		return
 	}
-
 	// Connect to the SQLite3 database file
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		log.Fatalf("Failed to connect: %v", err)
+		//log.Fatalf("Failed to connect: %v", err)
+		//fmt.Fprintf("Failed to connect: %s", err)
+		fmt.Printf("Failed to connect: %s\n", err)
+		return
 	}
 	defer db.Close()
 
+	// Check if the database connection is valid by pinging it
+	if err := db.Ping(); err != nil {
+		fmt.Printf("Failed to ping the database: %v\n", err)
+		return
+	}
+
+	if len(os.Args) > 2 {
+
+		switch os.Args[2] {
+		case "list-tables":
+			listTables(db)
+		case "proc-ips":
+			listNewIPDb(db)
+		default:
+			fmt.Println("Invalid argument: ", os.Args[1])
+		}
+	}
+
+	fmt.Println(`{"db":true}`)
+
+	//fmt.Println(usage())
+	//dbPath := os.Args[1]
 	// List new rows from the ips table
 	//listNewIPIds(db)
 	//listNewIPTms(db)
-	listNewIPDb(db)
+	//listNewIPDb(db)
 }
 
+func listTables(db *sql.DB) {
+	fmt.Println("listTables")
+}
 
 func getLastProcessedIDDb(db *sql.DB) int {
 	var lastID int
@@ -61,45 +130,44 @@ func markIPAsProcessed(db *sql.DB, id int) {
 }
 
 func listNewIPDb(db *sql.DB) {
-    lastID := getLastProcessedIDDb(db)
+	lastID := getLastProcessedIDDb(db)
 
-    rows, err := db.Query("SELECT rowid, ip FROM ips WHERE rowid > ?", lastID)
-    if err != nil {
-        log.Fatalf("Failed to query new IPs: %v", err)
-    }
+	rows, err := db.Query("SELECT rowid, ip FROM ips WHERE rowid > ?", lastID)
+	if err != nil {
+		log.Fatalf("Failed to query new IPs: %v", err)
+	}
 
-    // Store new IPs to process later
-    type ipInfo struct {
-        id int
-        ipAddress string
-    }
-    var newIPs []ipInfo
+	// Store new IPs to process later
+	type ipInfo struct {
+		id        int
+		ipAddress string
+	}
+	var newIPs []ipInfo
 
-    for rows.Next() {
-        var id int
-        var ipAddress string
-        if err := rows.Scan(&id, &ipAddress); err != nil {
-            log.Printf("Failed to scan row: %v", err)
-            continue
-        }
-        newIPs = append(newIPs, ipInfo{id: id, ipAddress: ipAddress})
-    }
+	for rows.Next() {
+		var id int
+		var ipAddress string
+		if err := rows.Scan(&id, &ipAddress); err != nil {
+			log.Printf("Failed to scan row: %v", err)
+			continue
+		}
+		newIPs = append(newIPs, ipInfo{id: id, ipAddress: ipAddress})
+	}
 
-    // Close rows as soon as you're done iterating
-    rows.Close()
+	// Close rows as soon as you're done iterating
+	rows.Close()
 
-    // Check for errors from iterating over rows.
-    if err := rows.Err(); err != nil {
-        log.Fatalf("Failed during rows iteration: %v", err)
-    }
+	// Check for errors from iterating over rows.
+	if err := rows.Err(); err != nil {
+		log.Fatalf("Failed during rows iteration: %v", err)
+	}
 
-    // Now process the IPs after closing the rows
-    for _, info := range newIPs {
-        fmt.Printf("New IP: %s\n", info.ipAddress)
-        markIPAsProcessed(db, info.id)
-    }
+	// Now process the IPs after closing the rows
+	for _, info := range newIPs {
+		fmt.Printf("New IP: %s\n", info.ipAddress)
+		markIPAsProcessed(db, info.id)
+	}
 }
-
 
 //Failed to mark IP as processed: database is locked
 /*
@@ -130,10 +198,9 @@ func listNewIPDb(db *sql.DB) {
 }
 */
 
-
-
-
 //----
+
+const cacheFileName = "last_processed_id.txt"
 
 func getLastProcessedTimestamp() time.Time {
 	content, err := ioutil.ReadFile(cacheFileName)
@@ -179,7 +246,7 @@ func listNewIPTms(db *sql.DB) {
 		}
 
 		//rowTime, err := time.Parse("2006-01-02 15:04:05", timestamp)
-        rowTime, err := time.Parse(time.RFC3339, timestamp)
+		rowTime, err := time.Parse(time.RFC3339, timestamp)
 		if err != nil {
 			log.Printf("Failed to parse timestamp from row: %v", err)
 			continue
@@ -202,9 +269,6 @@ func listNewIPTms(db *sql.DB) {
 		log.Fatalf("Failed during rows iteration: %v", err)
 	}
 }
-
-
-
 
 // -------
 
@@ -263,9 +327,7 @@ func listNewIPIds(db *sql.DB) {
 	}
 }
 
-
 // -------
-
 
 func listTokens(db *sql.DB) {
 	rows, err := db.Query("SELECT Token, Data, Timestamp FROM tokens")
@@ -291,32 +353,28 @@ func listTokens(db *sql.DB) {
 	}
 }
 
-
 func listIps(db *sql.DB) {
-    rows, err := db.Query("SELECT Ip, Data, Timestamp FROM ips")
-    if err != nil {
-        log.Fatalf("Failed to query ips: %v", err)
-    }
-    defer rows.Close()
+	rows, err := db.Query("SELECT Ip, Data, Timestamp FROM ips")
+	if err != nil {
+		log.Fatalf("Failed to query ips: %v", err)
+	}
+	defer rows.Close()
 
-    fmt.Println("ips in the database:")
-    fmt.Println("Ip\tData\tTimestamp")
-    for rows.Next() {
-        var ip, data, timestamp string
-        if err := rows.Scan(&ip, &data, &timestamp); err != nil {
-            log.Printf("Failed to scan row: %v", err)
-            continue
-        }
-        fmt.Printf("%s\t%s\t%s\n", ip, data, timestamp)
-    }
+	fmt.Println("ips in the database:")
+	fmt.Println("Ip\tData\tTimestamp")
+	for rows.Next() {
+		var ip, data, timestamp string
+		if err := rows.Scan(&ip, &data, &timestamp); err != nil {
+			log.Printf("Failed to scan row: %v", err)
+			continue
+		}
+		fmt.Printf("%s\t%s\t%s\n", ip, data, timestamp)
+	}
 
-    // Check for errors from iterating over rows.
-    if err := rows.Err(); err != nil {
-        log.Fatalf("Failed during rows iteration: %v", err)
-    }
+	// Check for errors from iterating over rows.
+	if err := rows.Err(); err != nil {
+		log.Fatalf("Failed during rows iteration: %v", err)
+	}
 }
 
-
-
-
-
+// db.Exec("PRAGMA journal_mode=WAL;")
