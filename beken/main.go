@@ -22,7 +22,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🐕-2023-08-25"
+var version = "1.0.0.🐕-2023-08-27"
 
 type RequestBody struct {
 	IP string `json:"ip"`
@@ -86,6 +86,40 @@ func tokenExistsInDBWithCache(db *sql.DB, cache *Cache, token string) bool {
 	return inDB
 }
 
+var expireDuration = 31536000 // This is for 1 year in seconds
+
+func tokenExistsInDBWithCacheTime(db *sql.DB, cache *Cache, token string, expireDuration int) bool {
+	// Check in cache first
+	exists, ok := cache.Exists(token)
+	if ok {
+		return exists
+	}
+
+	// If not in cache or expired, check in DB
+	var inDB bool
+	var timestamp time.Time
+	query := "SELECT EXISTS(SELECT 1 FROM tokens WHERE name=?), Timestamp FROM tokens WHERE name=?"
+	err := db.QueryRow(query, token, token).Scan(&inDB, &timestamp)
+	if err != nil {
+		log.Printf("Error querying the database: %v\n", err)
+		return false
+	}
+
+	// Check if token is expired based on the timestamp
+	if time.Since(timestamp).Seconds() > float64(expireDuration) {
+		log.Printf("Expired Token.\n")
+		inDB = false // if the token is expired, set it as not in DB
+	}
+
+	// Cache the result with an expiration duration
+	//cache.Set(token, inDB, time.Duration(expireDuration)*time.Second)
+
+	// Cache the result
+	cache.Set(token, inDB)
+
+	return inDB
+}
+
 func ipExistsInDB(db *sql.DB, ip string) bool {
 	var exists bool
 	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM ips WHERE name=?)", ip).Scan(&exists)
@@ -118,21 +152,19 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
-			http.Error(w, "", http.StatusMethodNotAllowed)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		header_token := r.Header.Get("beken-token")
 		if header_token == "" {
 			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
-			http.Error(w, "", http.StatusBadRequest)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
-		if !tokenExistsInDBWithCache(db, cache, header_token) {
-			//fmt.Println("Not in sqlite3")
-			//http.Error(w, "", http.StatusBadRequest)
-			http.Error(w, "Unauthorized request", http.StatusUnauthorized)
+		if !tokenExistsInDBWithCacheTime(db, cache, header_token, expireDuration) {
+			http.Error(w, "Unauthorized Request", http.StatusUnauthorized)
 			return
 		}
 
@@ -149,12 +181,10 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			return
 		}
 
-		//success, run commands
-		//ipAllow(requestBody.IP)
-		//save, err := db.query("INSERT INTO ips (Ip,Data) VALUES (requestBody.IP, 'Ip Entry')")
+		//success
 
 		// Save the IP to the database
-		_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, 'Ip Entry')", requestBody.IP)
+		_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", requestBody.IP, header_token)
 		if err != nil {
 			if strings.Contains(err.Error(), "UNIQUE constraint failed: ips.Name") {
 				//response := fmt.Sprintf("IP address %s is already in the database", requestBody.IP)
@@ -194,21 +224,81 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
 		if r.Method != http.MethodGet {
 			//http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
-			http.Error(w, "", http.StatusMethodNotAllowed)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
 		header_token := r.Header.Get("beken-token")
 		if header_token == "" {
 			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
-			http.Error(w, "", http.StatusBadRequest)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
-		if !tokenExistsInDBWithCache(db, cache, header_token) {
-			//fmt.Println("Not in sqlite3")
-			//http.Error(w, "", http.StatusBadRequest)
-			http.Error(w, "Unauthorized request", http.StatusUnauthorized)
+		if !tokenExistsInDBWithCacheTime(db, cache, header_token, expireDuration) {
+			http.Error(w, "Unauthorized Request", http.StatusUnauthorized)
+			return
+		}
+
+		/*
+		   bodyBytes, err := ioutil.ReadAll(r.Body)
+		   if err != nil {
+		       http.Error(w, "Failed to read body", http.StatusInternalServerError)
+		       return
+		   }
+
+		   var requestBody RequestBody
+		   err = json.Unmarshal(bodyBytes, &requestBody)
+		   if err != nil {
+		       http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+		       return
+		   }
+		*/
+
+		if !ipExistsInDB(db, clientIP) {
+			response := fmt.Sprintf(`{"ip": "%s", "exists": false}`, clientIP)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK) // Send a 200 OK status
+			w.Write([]byte(response))
+			return
+		}
+
+		response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // Send a 200 OK status
+		w.Write([]byte(response))
+
+	}
+}
+
+func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		clientIP := getClientIP(r)
+		log.Printf("Received GET /token request from IP: %s\n", clientIP)
+
+		setCorsHeaders(w) // Set CORS headers
+		if r.Method == http.MethodOptions {
+			// Pre-flight request. Reply successfully:
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if r.Method != http.MethodGet {
+			//http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		header_token := r.Header.Get("beken-token")
+		if header_token == "" {
+			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		if !tokenExistsInDBWithCacheTime(db, cache, header_token, expireDuration) {
+			http.Error(w, "Unauthorized Request", http.StatusUnauthorized)
 			return
 		}
 
@@ -385,6 +475,7 @@ func main() {
 	cache := NewCache(30 * time.Minute)
 	http.HandleFunc("/beken/post", httpPostHandler(database, cache))
 	http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
+	http.HandleFunc("/beken/token", httpTokenHandler(database, cache))
 
 	// Serve static content
 	http.Handle("/beken/client/", contentTypeSetter(http.StripPrefix("/beken/client", http.FileServer(http.Dir("./static_content")))))

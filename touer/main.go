@@ -1,17 +1,18 @@
 package main
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strconv"
 
+	"database/sql"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🐕-2023-08-25 1"
+var version = "1.0.0.🐕-2023-08-27"
 
 func usage() string {
 
@@ -37,6 +38,7 @@ Options:
 
 <db>  list-tokens
 <db>  add-token token data
+<db>  set-token-time token 2021-01-01T16:20:00Z
 <db>  del-token token
 <db>  purge-tokens
 
@@ -111,6 +113,14 @@ func main() {
 			token := os.Args[3]
 			data := os.Args[4]
 			err := insertNameData(db, "tokens", token, data)
+			if err != nil {
+				Errorf("Failed to insert: %v\n", err)
+			}
+
+		case "set-token-time":
+			token := os.Args[3]
+			time := os.Args[4]
+			err := updateNameTime(db, "tokens", token, time)
 			if err != nil {
 				Errorf("Failed to insert: %v\n", err)
 			}
@@ -384,6 +394,15 @@ func insertNameData(db *sql.DB, table string, name string, data string) error {
 		return fmt.Errorf("failed to insert name into %s: %v", table, err)
 	}
 
+	return nil
+}
+
+func updateNameTime(db *sql.DB, table string, name string, time string) error {
+	query := `UPDATE ` + table + ` SET Timestamp = ? WHERE Name = ?`
+	_, err := db.Exec(query, time, name)
+	if err != nil {
+		return fmt.Errorf("failed to update timestamp for name %s in %s: %v", name, table, err)
+	}
 	return nil
 }
 
