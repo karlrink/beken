@@ -22,7 +22,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "0.0.0.🐕-2023-08-25"
+var version = "1.0.0.🐕-2023-08-25"
 
 type RequestBody struct {
 	IP string `json:"ip"`
