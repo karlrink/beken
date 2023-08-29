@@ -1,6 +1,9 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
@@ -12,7 +15,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🐕-2023-08-27"
+var version = "1.0.0.🐕-2023-08-29"
 
 func usage() string {
 
@@ -46,6 +49,16 @@ Options:
 <db>  add-config name json
 <db>  del-config name
 <db>  purge-configs
+
+<db>  list-crypts
+<db>  add-crypt n name data
+<db>  del-crypt name
+<db>  de-crypt name
+<db>  purge-crypts
+
+<db>  list-keys
+<db>  add-key n name data
+<db>  del-key name
 
 `
 	return usage
@@ -91,17 +104,79 @@ func main() {
 	if len(os.Args) > 2 {
 
 		switch os.Args[2] {
+
 		case "list-tables":
 			listTables(db)
 		case "list-ips":
-			listIps(db)
+			//listIps(db)
+			listDataRows(db, "ips")
 		case "list-tokens":
-			listTokens(db)
+			//listTokens(db)
+			listDataRows(db, "tokens")
 		case "list-procs":
 			listProcs(db)
+			//listDataRows(db, "procs")
+
 		case "proc-ips":
 			//listNewIPDb(db)
 			procIps(db)
+
+		case "list-crypts":
+			listDataRows(db, "crypts")
+
+		case "add-crypt":
+			rowid := os.Args[3]
+			name := os.Args[4]
+			data := os.Args[5]
+
+			rowidInt, err := strconv.Atoi(rowid)
+			if err != nil {
+				fmt.Printf("Could not convert rowid to integer: %v\n", err)
+				return
+			}
+
+			err_insert := insertIdData(db, "crypts", rowidInt, name, data)
+			if err_insert != nil {
+				Errorf("Failed to insert: %v\n", err_insert)
+			}
+
+		case "del-crypt":
+			crypt := os.Args[3]
+			err := delName(db, "crypts", crypt)
+			if err != nil {
+				Errorf("Failed to del: %v\n", err)
+			}
+
+		case "de-crypt":
+			name := os.Args[3]
+			iv := os.Args[4]
+			decryptName(name, iv)
+
+		case "purge-crypts":
+			err := truncateTable(db, "crypts")
+			if err != nil {
+				Errorf("Failed to purge: %v\n", err)
+			}
+
+		case "list-keys":
+			listDataRows(db, "keys")
+
+		case "add-key":
+			rowid := os.Args[3]
+			name := os.Args[4]
+			data := os.Args[5]
+
+			rowidInt, err := strconv.Atoi(rowid)
+			if err != nil {
+				fmt.Printf("Could not convert rowid to integer: %v\n", err)
+				return
+			}
+
+			err_insert := insertIdData(db, "keys", rowidInt, name, data)
+			if err_insert != nil {
+				Errorf("Failed to insert: %v\n", err_insert)
+			}
+
 		case "add-ip":
 			ip := os.Args[3]
 			data := os.Args[4]
@@ -311,6 +386,31 @@ func procIps(db *sql.DB) {
 //---
 //---
 
+func listDataRows(db *sql.DB, table string) {
+
+	rows, err := db.Query("SELECT rowid, Name, Data, Timestamp FROM " + table)
+	if err != nil {
+		Errorf("Failed to query: %v\n", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var rowid int
+		var name, data, timestamp string
+		if err := rows.Scan(&rowid, &name, &data, &timestamp); err != nil {
+			Printf("Failed to scan row: %v", err)
+			continue
+		}
+		Printf("%s\t%s\t[%d]%s\n", name, data, rowid, timestamp)
+	}
+
+	// Check for errors from iterating over rows.
+	if err := rows.Err(); err != nil {
+		Errorf("Failed during rows iteration: %v\n", err)
+	}
+}
+
+/*
 func listTokens(db *sql.DB) {
 	rows, err := db.Query("SELECT rowid, Name, Data, Timestamp FROM tokens")
 	if err != nil {
@@ -360,6 +460,7 @@ func listIps(db *sql.DB) {
 		Errorf("Failed during rows iteration: %v\n", err)
 	}
 }
+*/
 
 func listProcs(db *sql.DB) {
 	rows, err := db.Query("SELECT rowid,* FROM procs")
@@ -384,6 +485,17 @@ func listProcs(db *sql.DB) {
 	if err := rows.Err(); err != nil {
 		Errorf("Failed during rows iteration: %v\n", err)
 	}
+}
+
+func insertIdData(db *sql.DB, table string, rowid int, name string, data string) error {
+
+	query := `INSERT INTO ` + table + ` (rowid,name,data) VALUES (?,?,?)`
+	_, err := db.Exec(query, rowid, name, data)
+	if err != nil {
+		return fmt.Errorf("failed to insert into %s: %v", table, err)
+	}
+
+	return nil
 }
 
 func insertNameData(db *sql.DB, table string, name string, data string) error {
@@ -603,5 +715,52 @@ func postfixAllow(ip string) {
 	//exec.Command("bash", "-c", cmd).Run()
 	//Println("postfix allow")
 }
+
+//---
+
+func decryptName(base64Ciphertext string, base64Iv string) error {
+
+	key := []byte("mysecretpassword")
+
+	unBase64Ciphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
+	if err != nil {
+		return err
+	}
+
+	unBase64Iv, err := base64.StdEncoding.DecodeString(base64Iv)
+	if err != nil {
+		return err
+	}
+
+	decrypted, err := aesDecrypt(unBase64Ciphertext, key, unBase64Iv)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(decrypted)) // Convert byte array to string here
+
+	return nil
+}
+
+func aesDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	plaintext, err := gcm.Open(nil, iv, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return plaintext, nil
+}
+
+//---
 
 // db.Exec("PRAGMA journal_mode=WAL;")

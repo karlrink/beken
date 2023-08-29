@@ -22,10 +22,12 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🐕-2023-08-27"
+var version = "1.0.0.🐕-2023-08-29"
 
 type RequestBody struct {
-	IP string `json:"ip"`
+	IP   string `json:"ip"`
+	User string `json:"user"`
+	Pass string `json:"pass"`
 }
 
 type CacheItem struct {
@@ -275,7 +277,7 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received GET /token request from IP: %s\n", clientIP)
+		log.Printf("Received POST /token request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
@@ -284,8 +286,8 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			return
 		}
 
-		if r.Method != http.MethodGet {
-			//http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
+		if r.Method != http.MethodPost {
+			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -303,29 +305,135 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 		}
 
 		/*
-		   bodyBytes, err := ioutil.ReadAll(r.Body)
-		   if err != nil {
-		       http.Error(w, "Failed to read body", http.StatusInternalServerError)
-		       return
-		   }
+			   bodyBytes, err := ioutil.ReadAll(r.Body)
+			   if err != nil {
+			       http.Error(w, "Failed to read body", http.StatusInternalServerError)
+			       return
+			   }
 
-		   var requestBody RequestBody
-		   err = json.Unmarshal(bodyBytes, &requestBody)
-		   if err != nil {
-		       http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
-		       return
-		   }
-		*/
+			   var requestBody RequestBody
+			   err = json.Unmarshal(bodyBytes, &requestBody)
+			   if err != nil {
+			       http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+			       return
+			   }
 
-		if !ipExistsInDB(db, clientIP) {
-			response := fmt.Sprintf(`{"ip": "%s", "exists": false}`, clientIP)
+			if !ipExistsInDB(db, clientIP) {
+				response := fmt.Sprintf(`{"ip": "%s", "exists": false}`, clientIP)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK) // Send a 200 OK status
+				w.Write([]byte(response))
+				return
+			}
+
+			response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK) // Send a 200 OK status
 			w.Write([]byte(response))
+		*/
+
+		//response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
+		response := fmt.Sprintf(`{"ip": "%s"}`, clientIP)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // Send a 200 OK status
+		w.Write([]byte(response))
+
+	}
+}
+
+func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		clientIP := getClientIP(r)
+		log.Printf("Received POST /token request from IP: %s\n", clientIP)
+
+		setCorsHeaders(w) // Set CORS headers
+		if r.Method == http.MethodOptions {
+			// Pre-flight request. Reply successfully:
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 
-		response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
+		if r.Method != http.MethodPost {
+			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		header_token := r.Header.Get("beken-token")
+		if header_token == "" {
+			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		if !tokenExistsInDBWithCacheTime(db, cache, header_token, expireDuration) {
+			http.Error(w, "Unauthorized Request", http.StatusUnauthorized)
+			return
+		}
+
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read body", http.StatusInternalServerError)
+			return
+		}
+
+		var requestBody RequestBody
+		err = json.Unmarshal(bodyBytes, &requestBody)
+		if err != nil {
+			http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+			return
+		}
+
+		/*
+				if !ipExistsInDB(db, clientIP) {
+					response := fmt.Sprintf(`{"ip": "%s", "exists": false}`, clientIP)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK) // Send a 200 OK status
+					w.Write([]byte(response))
+					return
+				}
+
+			response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK) // Send a 200 OK status
+			w.Write([]byte(response))
+
+		*/
+		//response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
+
+		//success
+
+		//TODO
+
+		// Save to the database
+		_, err = db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", requestBody.Pass, requestBody.User)
+		if err != nil {
+			/*
+				if strings.Contains(err.Error(), "UNIQUE constraint failed: ips.Name") {
+					//response := fmt.Sprintf("IP address %s is already in the database", requestBody.IP)
+					response := fmt.Sprintf(`{"beken": "%s", "exists": true}`, requestBody.IP)
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK) // Send a 200 OK status
+					w.Write([]byte(response))
+					log.Printf("Isert IP attempt by %s \n", clientIP)
+					return
+				}
+			*/
+
+			log.Printf("Failed to save IP to database: %v\n", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Isert Pass %s User %s \n", requestBody.Pass, requestBody.User)
+
+		//response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
+		//w.Header().Set("Content-Type", "application/json")
+		//w.WriteHeader(http.StatusOK) // Send a 200 OK status
+		//w.Write([]byte(response))
+
+		//response := fmt.Sprintf(`{"ip": "%s", "pass": true}`, clientIP)
+		response := fmt.Sprintf(`{"pass": true}`)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK) // Send a 200 OK status
 		w.Write([]byte(response))
@@ -425,6 +533,32 @@ func CreateTables(db *sql.DB) error {
 		return err
 	}
 
+	crypts_table := `CREATE TABLE crypts (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	query5, err := db.Prepare(crypts_table)
+	if err != nil {
+		return err
+	}
+	_, err = query5.Exec()
+	if err != nil {
+		return err
+	}
+
+	keys_table := `CREATE TABLE keys (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	query6, err := db.Prepare(keys_table)
+	if err != nil {
+		return err
+	}
+	_, err = query6.Exec()
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -476,9 +610,21 @@ func main() {
 	http.HandleFunc("/beken/post", httpPostHandler(database, cache))
 	http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
 	http.HandleFunc("/beken/token", httpTokenHandler(database, cache))
+	http.HandleFunc("/beken/pass", httpPassHandler(database, cache))
 
 	// Serve static content
-	http.Handle("/beken/client/", contentTypeSetter(http.StripPrefix("/beken/client", http.FileServer(http.Dir("./static_content")))))
+	http.Handle("/beken/client/", contentTypeSetter(http.StripPrefix("/beken/client", http.FileServer(http.Dir("./static_content/client")))))
+	http.Handle("/beken/password/", contentTypeSetter(http.StripPrefix("/beken/password", http.FileServer(http.Dir("./static_content/password")))))
+
+	/*
+		http.HandleFunc("/beken/client/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/beken/client", http.StatusMovedPermanently)
+		})
+
+		http.HandleFunc("/beken/password/", func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/beken/password", http.StatusMovedPermanently)
+		})
+	*/
 
 	port := "9480"
 	logger.Printf("Starting server %s on port:%s\n", version, port)

@@ -1,7 +1,7 @@
 // JavaScript
 const start = performance.now();
 
-const version = 'beken.js-0.0.1.🐕';
+const version = 'beken-client.js-0.0.0.🐕';
 
 // Get a reference to the container div
 const container = document.getElementById('container');
@@ -23,7 +23,7 @@ function router() {
 
 
 function viewLanding() {
-    document.title = 'Beken';
+    document.title = 'Beken:Client';
 
     // Create the Beken button and set up its click event
     const bekenButton = document.createElement('button');
@@ -56,6 +56,12 @@ function viewLanding() {
 
     const htmlH2 = document.createElement('h2');
     container.appendChild(htmlH2);
+
+    // remove trailing slash
+    if (window.location.pathname.endsWith("/")) {
+        var newPath = window.location.pathname.slice(0, -1);
+        window.history.replaceState({}, "", newPath);
+    }
 
     let timer= 1;
 
