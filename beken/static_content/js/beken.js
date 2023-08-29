@@ -1,7 +1,7 @@
 // JavaScript
-
-const version = 'beken.js-004';
 const start = performance.now();
+
+const version = 'beken.js-0.0.1.🐕';
 
 // Get a reference to the container div
 const container = document.getElementById('container');
@@ -155,7 +155,31 @@ window.addLocalStore = function() {
 }
 
 
-function addBekenToken() {
+async function addBekenToken() {
+  const beken_user  = window.prompt("user: ");
+  const beken_pass  = window.prompt("pass: ");
+
+  const text = beken_user + ":" + beken_pass;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+  // Convert buffer to byte array
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+
+  // Convert the byte array to a Base64 string
+  const base64 = btoa(String.fromCharCode(...hashArray));
+
+  const beken_token = "bt-" + base64
+
+  localStorage.setItem("beken-token", beken_token);
+  history.pushState({page: 'addLocalStore'}, "addLocalStore", "?");
+  location.reload();
+}
+
+
+function addBekenToken_V1() {
    const beken_token  = window.prompt("beken-token: ");
    localStorage.setItem("beken-token", beken_token);
    history.pushState({page: 'addLocalStore'}, "addLocalStore", "?");
