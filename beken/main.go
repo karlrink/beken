@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -304,36 +306,34 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			return
 		}
 
-		/*
-			   bodyBytes, err := ioutil.ReadAll(r.Body)
-			   if err != nil {
-			       http.Error(w, "Failed to read body", http.StatusInternalServerError)
-			       return
-			   }
+		//success
 
-			   var requestBody RequestBody
-			   err = json.Unmarshal(bodyBytes, &requestBody)
-			   if err != nil {
-			       http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
-			       return
-			   }
+		//TODO
 
-			if !ipExistsInDB(db, clientIP) {
-				response := fmt.Sprintf(`{"ip": "%s", "exists": false}`, clientIP)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK) // Send a 200 OK status
-				w.Write([]byte(response))
-				return
-			}
+		random16, err := randomString(16)
+		if err != nil {
+			fmt.Printf("Failed to generate random: %v\n", err)
+			http.Error(w, "Internal server error - Failed to generate random", http.StatusInternalServerError)
+			return
+		}
 
-			response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK) // Send a 200 OK status
-			w.Write([]byte(response))
-		*/
+		// Save to the database
+		result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", random16, header_token)
+		if err != nil {
+			log.Printf("Failed to save to database: %v\n", err)
+			http.Error(w, "Internal server error - Failed to save to database", http.StatusInternalServerError)
+			return
+		}
 
-		//response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
-		response := fmt.Sprintf(`{"ip": "%s"}`, clientIP)
+		// Get last inserted ID
+		lastID, err := result.LastInsertId()
+		if err != nil {
+			log.Printf("Failed to get last rowid: %v\n", err)
+		}
+
+		log.Printf("Isert randome16: %s \n", random16)
+
+		response := fmt.Sprintf(`{"key": "%s", "id": %d}`, random16, lastID)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK) // Send a 200 OK status
 		w.Write([]byte(response))
@@ -404,8 +404,6 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
 		//success
 
-		//TODO
-
 		// Save to the database
 		_, err = db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", requestBody.Pass, requestBody.User)
 		if err != nil {
@@ -422,10 +420,10 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			*/
 
 			log.Printf("Failed to save IP to database: %v\n", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			http.Error(w, "Internal server error - Failed to save to database", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Isert Pass %s User %s \n", requestBody.Pass, requestBody.User)
+		log.Printf("Isert crypts Name %s User %s \n", requestBody.Pass, requestBody.User)
 
 		//response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
 		//w.Header().Set("Content-Type", "application/json")
@@ -573,6 +571,15 @@ func contentTypeSetter(next http.Handler) http.HandlerFunc {
 		// Call the next handler (in this case, the FileServer)
 		next.ServeHTTP(w, r)
 	}
+}
+
+func randomString(length int) (string, error) {
+	bytes := make([]byte, length)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 func main() {

@@ -53,7 +53,7 @@ Options:
 <db>  list-crypts
 <db>  add-crypt n name data
 <db>  del-crypt name
-<db>  de-crypt name
+<db>  de-crypt name iv key
 <db>  purge-crypts
 
 <db>  list-keys
@@ -150,7 +150,8 @@ func main() {
 		case "de-crypt":
 			name := os.Args[3]
 			iv := os.Args[4]
-			decryptName(name, iv)
+			key := os.Args[5]
+			decryptName(name, iv, key)
 
 		case "purge-crypts":
 			err := truncateTable(db, "crypts")
@@ -718,9 +719,9 @@ func postfixAllow(ip string) {
 
 //---
 
-func decryptName(base64Ciphertext string, base64Iv string) error {
+func decryptName(base64Ciphertext string, base64Iv string, key string) error {
 
-	key := []byte("mysecretpassword")
+	//key := []byte("mysecretpassword")
 
 	unBase64Ciphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
 	if err != nil {
@@ -732,7 +733,7 @@ func decryptName(base64Ciphertext string, base64Iv string) error {
 		return err
 	}
 
-	decrypted, err := aesDecrypt(unBase64Ciphertext, key, unBase64Iv)
+	decrypted, err := aesDecrypt(unBase64Ciphertext, []byte(key), unBase64Iv)
 	if err != nil {
 		return err
 	}
@@ -753,12 +754,12 @@ func aesDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	plaintext, err := gcm.Open(nil, iv, ciphertext, nil)
+	plainTextBytes, err := gcm.Open(nil, iv, ciphertext, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return plaintext, nil
+	return plainTextBytes, nil
 }
 
 //---
