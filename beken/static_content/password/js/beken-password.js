@@ -37,27 +37,42 @@ async function bekenPassWord() {
 
   const beken_token = "bt-" + base64;
 
+  /*
   let keyStr;
-
   try {
       keyStr = await sendTokenRequest(beken_token);
   } catch (error) {
       document.getElementById('container').innerText = 'Error: ' + error.message;
       return;  // Stop the function if sendTokenRequest fails
   }
+  */
+
+  let result;
+
+  try {
+      result = await sendTokenRequest(beken_token);
+  } catch (error) {
+      document.getElementById('container').innerText = 'Error: ' + error.message;
+      return;  // Stop the function if sendTokenRequest fails
+  }
+
+  console.log(result.key);
+  console.log(result.id);
 
   const new_beken_pass  = window.prompt("new pass: ");
 
-  const { base64Ciphertext, base64Iv } = await aesEncrypt(new_beken_pass, keyStr);
+  const { base64Ciphertext, base64Iv } = await aesEncrypt(new_beken_pass, result.key);
   console.log("Returned Base64 Ciphertext:", base64Ciphertext);
   console.log("Returned Base64 Iv:", base64Iv);
 
-  postPassRequest(beken_user, beken_token, base64Ciphertext +" "+ base64Iv);
+  postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, result.id);
+  //postPassRequest(beken_user, beken_token, base64Ciphertext +" "+ base64Iv);
 
 }
 
 
-function postPassRequest(beken_user, beken_token, base64Ciphertext) {
+function postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, keyId) {
+//function postPassRequest(beken_user, beken_token, base64Ciphertext) {
 
     var headers = new Headers();
     headers.append('Content-Type', 'application/json');
@@ -65,9 +80,13 @@ function postPassRequest(beken_user, beken_token, base64Ciphertext) {
 
     var body = JSON.stringify({});
 
-    var body = JSON.stringify({
-        "user": beken_user,       // Use the passed var instead of hard-coded value
-        "pass": base64Ciphertext  // Use the passed var instead of hard-coded value
+    //var pass = base64Ciphertext + " " + base64Iv;
+
+    var body = JSON.stringify({  // Use the passed var instead of hard-coded value
+        "user": beken_user,
+        "pass": base64Ciphertext,
+        "iv": base64Iv,
+        "id": keyId
     });
 
     var requestOptions = {
@@ -135,7 +154,7 @@ async function sendTokenRequest(beken_token) {
   const result = await response.json();
   document.getElementById('container').innerText = JSON.stringify(result);
 
-  return result.key
+  return { key: result.key, id: result.id };
 
 }
 
@@ -192,51 +211,6 @@ function arrayBufferToBase64(buffer) {
 
 function viewLanding() {
     document.title = 'Beken:Password';
-}
-
-
-
-
-// This function will make the POST request
-function sendPostRequest(ipAddress) {
-    var beken_token = localStorage.getItem("beken-token");
-    //var beken_host = localStorage.getItem("beken-host");
-    var beken_host = window.location.origin;
-
-    var headers = new Headers();
-    headers.append('Content-Type', 'application/json');
-    headers.append('beken-token', beken_token);
-
-    var body = JSON.stringify({
-        "ip": ipAddress  // Use the passed ipAddress instead of hard-coded value
-    });
-
-    var requestOptions = {
-        method: 'POST',
-        headers: headers,
-        body: body
-    };
-
-    console.log(beken_host + "/beken/post");
-
-    var timeoutDuration = 5000; // 5 seconds
-    var timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Request timed out after " + timeoutDuration + "ms")), timeoutDuration);
-    });
-
-    Promise.race([fetch(beken_host + "/beken/post", requestOptions), timeoutPromise])
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(result => {
-            document.getElementById('container').innerText = JSON.stringify(result);
-        })
-        .catch(error => {
-            document.getElementById('container').innerText = 'Error: ' + error.message;
-        });
 }
 
 

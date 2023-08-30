@@ -1,7 +1,11 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -30,6 +34,8 @@ type RequestBody struct {
 	IP   string `json:"ip"`
 	User string `json:"user"`
 	Pass string `json:"pass"`
+	Iv   string `json:"iv"`
+	Id   int    `json:"id"`
 }
 
 type CacheItem struct {
@@ -145,7 +151,7 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received POST /post request from IP: %s\n", clientIP)
+		log.Printf("Received POST /beken/post request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
@@ -217,7 +223,7 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received GET /ip request from IP: %s\n", clientIP)
+		log.Printf("Received GET /beken/ip request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
@@ -279,7 +285,7 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received POST /token request from IP: %s\n", clientIP)
+		log.Printf("Received POST /beken/token request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
@@ -308,8 +314,6 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
 		//success
 
-		//TODO
-
 		random16, err := randomString(16)
 		if err != nil {
 			fmt.Printf("Failed to generate random: %v\n", err)
@@ -320,8 +324,8 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 		// Save to the database
 		result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", random16, header_token)
 		if err != nil {
-			log.Printf("Failed to save to database: %v\n", err)
-			http.Error(w, "Internal server error - Failed to save to database", http.StatusInternalServerError)
+			log.Printf("Failed to insert into database: %v\n", err)
+			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
 			return
 		}
 
@@ -331,7 +335,7 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			log.Printf("Failed to get last rowid: %v\n", err)
 		}
 
-		log.Printf("Isert randome16: %s \n", random16)
+		log.Printf("Isert randome16: %s rowid: %d \n", random16, lastID)
 
 		response := fmt.Sprintf(`{"key": "%s", "id": %d}`, random16, lastID)
 		w.Header().Set("Content-Type", "application/json")
@@ -345,7 +349,7 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received POST /token request from IP: %s\n", clientIP)
+		log.Printf("Received POST /beken/pass request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
@@ -362,8 +366,8 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
 		header_token := r.Header.Get("beken-token")
 		if header_token == "" {
-			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
-			http.Error(w, "Bad Request", http.StatusBadRequest)
+			http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+			//http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
@@ -385,58 +389,173 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			return
 		}
 
-		/*
-				if !ipExistsInDB(db, clientIP) {
-					response := fmt.Sprintf(`{"ip": "%s", "exists": false}`, clientIP)
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusOK) // Send a 200 OK status
-					w.Write([]byte(response))
-					return
-				}
-
-			response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK) // Send a 200 OK status
-			w.Write([]byte(response))
-
-		*/
-		//response := fmt.Sprintf(`{"ip": "%s", "exists": true}`, clientIP)
+		//requestBody.Pass
+		//requestBody.User
+		//requestBody.Id
 
 		//success
 
-		// Save to the database
-		_, err = db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", requestBody.Pass, requestBody.User)
-		if err != nil {
-			/*
-				if strings.Contains(err.Error(), "UNIQUE constraint failed: ips.Name") {
-					//response := fmt.Sprintf("IP address %s is already in the database", requestBody.IP)
-					response := fmt.Sprintf(`{"beken": "%s", "exists": true}`, requestBody.IP)
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusOK) // Send a 200 OK status
-					w.Write([]byte(response))
-					log.Printf("Isert IP attempt by %s \n", clientIP)
-					return
-				}
-			*/
+		nameData := requestBody.Pass + " " + requestBody.Iv
+		dataData := requestBody.User
 
-			log.Printf("Failed to save IP to database: %v\n", err)
-			http.Error(w, "Internal server error - Failed to save to database", http.StatusInternalServerError)
+		// Insert into the database
+		_, err_query := db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", nameData, dataData)
+		if err_query != nil {
+			log.Printf("Failed to insert into database: %v\n", err_query)
+			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
 			return
 		}
 		log.Printf("Isert crypts Name %s User %s \n", requestBody.Pass, requestBody.User)
 
-		//response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
-		//w.Header().Set("Content-Type", "application/json")
-		//w.WriteHeader(http.StatusOK) // Send a 200 OK status
-		//w.Write([]byte(response))
+		// get last insert id here
+		// Get last inserted ID
+		//lastID, err := result.LastInsertId()
+		//if err != nil {
+		//	log.Printf("Failed to get last rowid: %v\n", err)
+		//}
+
+		//prepar new token, put in db, and send back to client
+
+		// TODO
+
+		// need pass.  is decrypt
+		//<db>  de-crypt name iv key
+		// decryptName(name, iv, key)
+		//
+		// name, iv are requestBody.Pass split.(' ')
+		// key is in db... lastID?
+
+		//lookup key in db (header_token is data list-keys)
+		var keyStr string
+
+		//var keyId int
+
+		//FIX WRONG QUERY gets wrong key...
+		//./touer ../beken/beken.db de-crypt VgjHjrIZNLUJLa3ic0Mo4faf DX853dDYDmhZIa6Q a6369dcf5fa35aa471983e4448b27ce7
+		//./touer ../beken/beken.db de-crypt VgjHjrIZNLUJLa3ic0Mo4faf DX853dDYDmhZIa6Q 12c1f4af944c8981050e3b4bcb7bc2c9
+
+		//err := db.QueryRow("SELECT name from keys where data = ?", header_token)
+
+		//query1 := db.QueryRow("SELECT name from keys where data = ?", header_token).Scan(&keyStr)
+
+		// Convert string to integer using strconv.Atoi
+		//keyId, err := strconv.Atoi(requestBody.Id)
+		//if err != nil {
+		//	log.Printf("Failed Conversion error: %v\n", err)
+		//	http.Error(w, "Internal server error - Failed Conversion", http.StatusInternalServerError)
+		//	return
+		//}
+		//query1 := db.QueryRow("SELECT name from keys where rowid = ?", keyId).Scan(&keyStr)
+
+		log.Printf("requestBody.User: %s\n", requestBody.User)
+		log.Printf("requestBody.Pass: %s\n", requestBody.Pass)
+		log.Printf("requestBody.Iv: %s\n", requestBody.Iv)
+		log.Printf("requestBody.Id: %d\n", requestBody.Id)
+
+		query1 := db.QueryRow("SELECT name from keys where rowid = ?", requestBody.Id).Scan(&keyStr)
+
+		//keyId
+		//query1 := db.QueryRow("SELECT name from keys where rowid = ?", keyId).Scan(&keyStr)
+
+		if query1 != nil {
+			log.Printf("Failed SELECT name from keys: %v\n", query1)
+			http.Error(w, "Internal server error - Failed SELECT database", http.StatusInternalServerError)
+			return
+		}
+
+		//now decrypt name iv keyStr
+
+		//log.Printf(key_data)
+		//splitted := strings.Fields(key_data)
+		//splitted := strings.Fields(requestBody.Pass)
+		//cTxt := splitted[0]
+		//cIv := splitted[1]
+
+		//err := decryptName(unBase64Ciphertext, base64Iv, keyStr)
+		//decrypted, err := decryptName(cTxt, cIv, keyStr)
+		//decrypted, err := decryptName(cTxt, cIv, keyStr)
+
+		//log.Printf(cTxt)
+		//log.Printf(cIv)
+		//log.Printf(keyStr)
+
+		//decrypted, err := decryptName(cTxt, cIv, keyStr)
+		decrypted, err := decryptName(requestBody.Pass, requestBody.Iv, keyStr)
+		if err != nil {
+			log.Printf("Failed decrypt: %v\n", err)
+			http.Error(w, "Internal server error - Failed decrypt", http.StatusInternalServerError)
+			return
+		}
+
+		// user : pass concat
+		// Concatenate the username and password with a colon
+		//data := requestBody.User + ":" + pass
+		data := requestBody.User + ":" + decrypted
+
+		// Compute SHA-256 hash
+		hash := sha256.New()
+		hash.Write([]byte(data))
+		hashedData := hash.Sum(nil)
+
+		//log.Printf("hash data: %v\n", hashedData)
+
+		// Perform Base64 encoding
+		base64Encoded := base64.StdEncoding.EncodeToString(hashedData)
+
+		//log.Printf("base64Encoded: %v\n", base64Encoded)
+
+		newToken := "bt-" + base64Encoded
 
 		//response := fmt.Sprintf(`{"ip": "%s", "pass": true}`, clientIP)
-		response := fmt.Sprintf(`{"pass": true}`)
+		response := fmt.Sprintf(`{"beken-token": "%s"}`, newToken)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK) // Send a 200 OK status
 		w.Write([]byte(response))
 
+		log.Printf("Sent: %s\n", response)
+
 	}
+}
+
+func decryptName(base64Ciphertext string, base64Iv string, key string) (string, error) {
+
+	unBase64Ciphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
+	if err != nil {
+		return "", err
+	}
+
+	unBase64Iv, err := base64.StdEncoding.DecodeString(base64Iv)
+	if err != nil {
+		return "", err
+	}
+
+	decrypted, err := aesDecrypt(unBase64Ciphertext, []byte(key), unBase64Iv)
+	if err != nil {
+		return "", err
+	}
+
+	//fmt.Println(string(decrypted)) // Convert byte array to string here
+	//return nil
+	return string(decrypted), nil
+}
+
+func aesDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	plainTextBytes, err := gcm.Open(nil, iv, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return plainTextBytes, nil
 }
 
 func getClientIP(r *http.Request) string {
