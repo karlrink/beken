@@ -59,6 +59,7 @@ Options:
 <db>  list-keys
 <db>  add-key n name data
 <db>  del-key name
+<db>  purge-keys
 
 `
 	return usage
@@ -176,6 +177,12 @@ func main() {
 			err_insert := insertIdData(db, "keys", rowidInt, name, data)
 			if err_insert != nil {
 				Errorf("Failed to insert: %v\n", err_insert)
+			}
+
+		case "purge-keys":
+			err := truncateTable(db, "keys")
+			if err != nil {
+				Errorf("Failed to purge: %v\n", err)
 			}
 
 		case "add-ip":

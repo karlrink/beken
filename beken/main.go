@@ -28,14 +28,14 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🐕-2023-08-29"
+var version = "1.0.0.🐕-2023-08-30"
 
 type RequestBody struct {
-	IP   string `json:"ip"`
-	User string `json:"user"`
-	Pass string `json:"pass"`
-	Iv   string `json:"iv"`
-	Id   int    `json:"id"`
+	Id   int    `json:"id,omitempty"`
+	User string `json:"user,omitempty"`
+	Pass string `json:"pass,omitempty"`
+	Iv   string `json:"iv,omitempty"`
+	IP   string `json:"ip,omitempty"`
 }
 
 type CacheItem struct {
@@ -151,14 +151,15 @@ func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received POST /beken/post request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
+			log.Printf("Received %s CORS /beken/post request from IP: %s\n", r.Method, clientIP)
 			return
 		}
+		log.Printf("Received %s /beken/post request from IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -223,14 +224,15 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received GET /beken/ip request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
+			log.Printf("Received %s CORS /beken/ip request from IP: %s\n", r.Method, clientIP)
 			return
 		}
+		log.Printf("Received %s /beken/ip request from IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodGet {
 			//http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
@@ -285,14 +287,15 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received POST /beken/token request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
+			log.Printf("Received %s CORS /beken/token request from IP: %s\n", r.Method, clientIP)
 			return
 		}
+		log.Printf("Received %s /beken/token request from IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -349,14 +352,15 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
-		log.Printf("Received POST /beken/pass request from IP: %s\n", clientIP)
 
 		setCorsHeaders(w) // Set CORS headers
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
+			log.Printf("Received %s CORS /beken/pass request from IP: %s\n", r.Method, clientIP)
 			return
 		}
+		log.Printf("Received %s /beken/pass request from IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -505,6 +509,17 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 		//log.Printf("base64Encoded: %v\n", base64Encoded)
 
 		newToken := "bt-" + base64Encoded
+
+		//add new token to db
+
+		// Insert into the database
+		_, err_query2 := db.Exec("INSERT INTO tokens (Name, Data) VALUES (?, ?)", newToken, requestBody.User)
+		if err_query2 != nil {
+			log.Printf("Failed to insert into database: %v\n", err_query2)
+			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Isert tokens Name %s Data %s \n", newToken, requestBody.User)
 
 		//response := fmt.Sprintf(`{"ip": "%s", "pass": true}`, clientIP)
 		response := fmt.Sprintf(`{"beken-token": "%s"}`, newToken)
