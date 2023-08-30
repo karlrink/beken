@@ -34,6 +34,9 @@ async function bekenPassWord() {
   // Convert the byte array to a Base64 string
   const base64 = btoa(String.fromCharCode(...hashArray));
 
+  // Create a URL-safe Base64 string
+  //const base64UrlSafe = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
   const beken_token = "bt-" + base64;
 
   let result;

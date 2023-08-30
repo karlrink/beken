@@ -1,35 +1,46 @@
 package main
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
+
+	"golang.org/x/term"
 )
 
 func main() {
-	// Check if sufficient arguments are provided
-	if len(os.Args) < 3 {
-		fmt.Println("Usage: go run main.go <yourUsername> <yourPassword>")
+	reader := bufio.NewReader(os.Stdin)
+
+	// Get username
+	fmt.Print("Enter username: ")
+	bekenUser, _ := reader.ReadString('\n')
+	bekenUser = strings.TrimSpace(bekenUser)
+
+	// Get password without echoing it
+	fmt.Print("Enter password: ")
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		fmt.Println("\nError reading password:", err)
 		return
 	}
+	newBekenPass := string(passwordBytes)
+	fmt.Println() // Newline for better formatting
 
-	// Read username and password from command line arguments
-	user := os.Args[1]
-	pass := os.Args[2]
+	// Generate token
+	text := bekenUser + ":" + newBekenPass
+	data := []byte(text)
+	hasher := sha256.New()
+	hasher.Write(data)
+	hashedData := hasher.Sum(nil)
 
-	// Concatenate the username and password with a colon
-	data := user + ":" + pass
-
-	// Compute SHA-256 hash
-	hash := sha256.New()
-	hash.Write([]byte(data))
-	hashedData := hash.Sum(nil)
-
-	// Perform Base64 encoding
+	// Base64 encode
 	base64Encoded := base64.StdEncoding.EncodeToString(hashedData)
 
-	// Print the hashed and encoded data
-	//fmt.Println("SHA-256 Hash:", hashedData)
-	fmt.Println("Base64 Encoded:", base64Encoded)
+	// Prepend "bt-" to base64 encoded string
+	bekenToken := "bt-" + base64Encoded
+
+	fmt.Println("Generated beken_token:", bekenToken)
 }
