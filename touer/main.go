@@ -766,7 +766,7 @@ func genToken(db *sql.DB) error {
 	// Prepend "bt-" to base64 encoded string
 	bekenToken := "bt-" + base64Encoded
 
-	fmt.Println("Generated beken_token:", bekenToken)
+	//fmt.Println("Generated beken_token:", bekenToken)
 
 	// Generate AES-GCM encryption key (for demonstration using a 16 byte key)
 	//key := []byte("1234567890123456") // This is just an example key; you'll want to replace it
@@ -790,8 +790,8 @@ func genToken(db *sql.DB) error {
 	iv, ciphertext := aesEncrypt([]byte(newBekenPass), key_random16Bytes)
 	ivBase64 := base64.StdEncoding.EncodeToString(iv)
 	ciphertextBase64 := base64.StdEncoding.EncodeToString(ciphertext)
-	fmt.Println("Encrypted data:", ciphertextBase64+" "+ivBase64)
-	fmt.Println("Key:", key_random16)
+	//fmt.Println("Encrypted data:", ciphertextBase64+" "+ivBase64)
+	//fmt.Println("Key:", key_random16)
 
 	// insert into db
 
@@ -801,7 +801,7 @@ func genToken(db *sql.DB) error {
 	if err_insert_token != nil {
 		return err_insert_token
 	}
-	log.Printf("Isert tokens Name %s Data %s \n", bekenToken, bekenUser)
+	//log.Printf("Isert tokens Name %s Data %s \n", bekenToken, bekenUser)
 
 	// Save to the database
 	result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", key_random16, bekenToken)
@@ -818,11 +818,6 @@ func genToken(db *sql.DB) error {
 	// Convert lastID from int64 to int
 	idInt := int(lastID)
 
-	//idInt, err := strconv.Atoi(lastID)
-	//if err != nil {
-	//	return err
-	//}
-
 	cryptData := ciphertextBase64 + " " + ivBase64
 	userData := bekenUser
 
@@ -833,8 +828,9 @@ func genToken(db *sql.DB) error {
 		log.Printf("Failed to insert into database: %v\n", err_query)
 		return err_query
 	}
-	log.Printf("Isert crypts Name %s Data %s \n", cryptData, userData)
+	//log.Printf("Isert crypts Name %s Data %s \n", cryptData, userData)
 
+	fmt.Println("Generated beken_token:", bekenToken)
 	return nil
 }
 

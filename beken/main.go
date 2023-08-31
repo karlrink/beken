@@ -370,7 +370,73 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	}
 }
 
-func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+func httpTokenHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		clientIP := getClientIP(r)
+
+		setCorsHeaders(w) // Set CORS headers
+		if r.Method == http.MethodOptions {
+			// Pre-flight request. Reply successfully:
+			w.WriteHeader(http.StatusOK)
+			log.Printf("Received %s CORS /beken/token request from IP: %s\n", r.Method, clientIP)
+			return
+		}
+		log.Printf("Received %s /beken/token request from IP: %s\n", r.Method, clientIP)
+
+		if r.Method != http.MethodPost {
+			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		header_token := r.Header.Get("beken-token")
+		if header_token == "" {
+			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		//if !tokenExistsInDBWithCacheTime(db, cache, header_token, expireDuration) {
+		if !tokenExistsInDB(db, header_token) {
+			http.Error(w, "Unauthorized Request", http.StatusUnauthorized)
+			return
+		}
+
+		//success
+
+		random16, err := randomString(16)
+		if err != nil {
+			fmt.Printf("Failed to generate random: %v\n", err)
+			http.Error(w, "Internal server error - Failed to generate random", http.StatusInternalServerError)
+			return
+		}
+
+		// Save to the database
+		result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", random16, header_token)
+		if err != nil {
+			log.Printf("Failed to insert into database: %v\n", err)
+			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
+			return
+		}
+
+		// Get last inserted ID
+		lastID, err := result.LastInsertId()
+		if err != nil {
+			log.Printf("Failed to get last rowid: %v\n", err)
+		}
+
+		log.Printf("Isert randome16: %s rowid: %d \n", random16, lastID)
+
+		response := fmt.Sprintf(`{"key": "%s", "id": %d}`, random16, lastID)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // Send a 200 OK status
+		w.Write([]byte(response))
+
+	}
+}
+
+func httpTokenHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
@@ -435,7 +501,178 @@ func httpTokenHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 	}
 }
 
-func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+func httpPassHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		clientIP := getClientIP(r)
+
+		setCorsHeaders(w) // Set CORS headers
+		if r.Method == http.MethodOptions {
+			// Pre-flight request. Reply successfully:
+			w.WriteHeader(http.StatusOK)
+			log.Printf("Received %s CORS /beken/pass request from IP: %s\n", r.Method, clientIP)
+			return
+		}
+		log.Printf("Received %s /beken/pass request from IP: %s\n", r.Method, clientIP)
+
+		if r.Method != http.MethodPost {
+			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		header_token := r.Header.Get("beken-token")
+		if header_token == "" {
+			http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+			//http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		//if !tokenExistsInDBWithCacheTime(db, cache, header_token, expireDuration) {
+		if !tokenExistsInDB(db, header_token) {
+			http.Error(w, "Unauthorized Request", http.StatusUnauthorized)
+			return
+		}
+
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read body", http.StatusInternalServerError)
+			return
+		}
+
+		var requestBody RequestBody
+		err = json.Unmarshal(bodyBytes, &requestBody)
+		if err != nil {
+			http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+			return
+		}
+
+		//requestBody.Pass
+		//requestBody.User
+		//requestBody.Iv
+		//requestBody.Id
+
+		//success
+
+		cryptData := requestBody.Pass + " " + requestBody.Iv
+		userData := requestBody.User
+
+		//requestBody.Id
+
+		// Insert into the database
+		//_, err_query := db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", cryptData, userData)
+		_, err_query := db.Exec("INSERT INTO crypts (rowid, Name, Data) VALUES (?, ?, ?)", requestBody.Id, cryptData, userData)
+		if err_query != nil {
+			log.Printf("Failed to insert into database: %v\n", err_query)
+			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Isert crypts Name %s User %s \n", requestBody.Pass, requestBody.User)
+
+		var keyStr string
+		//log.Printf("requestBody.User: %s\n", requestBody.User)
+		//log.Printf("requestBody.Pass: %s\n", requestBody.Pass)
+		//log.Printf("requestBody.Iv: %s\n", requestBody.Iv)
+		//log.Printf("requestBody.Id: %d\n", requestBody.Id)
+
+		query1 := db.QueryRow("SELECT name from keys where rowid = ?", requestBody.Id).Scan(&keyStr)
+
+		if query1 != nil {
+			log.Printf("Failed SELECT name from keys: %v\n", query1)
+			http.Error(w, "Internal server error - Failed SELECT database", http.StatusInternalServerError)
+			return
+		}
+
+		//decrypt name iv keyStr
+		decrypted, err := decryptName(requestBody.Pass, requestBody.Iv, keyStr)
+		if err != nil {
+			log.Printf("Failed decrypt: %v\n", err)
+			http.Error(w, "Internal server error - Failed decrypt", http.StatusInternalServerError)
+			return
+		}
+
+		// user : pass concat
+		// Concatenate the username and password with a colon
+		//data := requestBody.User + ":" + pass
+		data := requestBody.User + ":" + decrypted
+
+		// Compute SHA-256 hash
+		hash := sha256.New()
+		hash.Write([]byte(data))
+		hashedData := hash.Sum(nil)
+		//log.Printf("hash data: %v\n", hashedData)
+
+		// Perform Base64 encoding
+		base64Encoded := base64.StdEncoding.EncodeToString(hashedData)
+		//log.Printf("base64Encoded: %v\n", base64Encoded)
+
+		newToken := "bt-" + base64Encoded
+
+		//add new token to db
+		// Insert into the database
+		_, err_query2 := db.Exec("INSERT INTO tokens (Name, Data) VALUES (?, ?)", newToken, requestBody.User)
+		if err_query2 != nil {
+			log.Printf("Failed to insert into database: %v\n", err_query2)
+			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Isert tokens Name %s Data %s \n", newToken, requestBody.User)
+
+		// Delete/Clean up old token
+		_, err_delete := db.Exec("DELETE FROM tokens WHERE Name = ?", header_token)
+		if err_delete != nil {
+			log.Printf("Failed to delete old token from database: %v\n", err_delete)
+			http.Error(w, "Internal server error - Failed to delete old token", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Deleted old token %s \n", header_token)
+
+		// Delete old key
+		// query for rowid
+		//rowId := db.QueryRow("SELECT rowid from keys where data = ?", header_token)
+		//_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
+		//_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
+
+		// Query rowId from the keys table
+		var rowId int
+		err_query_rowid := db.QueryRow("SELECT rowid FROM keys WHERE data = ?", header_token).Scan(&rowId)
+		if err_query_rowid != nil {
+			log.Printf("Failed to get rowid from database: %v\n", err_query_rowid)
+			http.Error(w, "Internal server error - Failed to get rowid", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Got rowid %d for header_token %s \n", rowId, header_token)
+
+		// Delete corresponding entry from keys table
+		_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
+		if err_delete_keys != nil {
+			log.Printf("Failed to delete key from database: %v\n", err_delete_keys)
+			http.Error(w, "Internal server error - Failed to delete key", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Deleted key with rowid %d \n", rowId)
+
+		// Delete corresponding entry from crypts table
+		_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
+		if err_delete_crypts != nil {
+			log.Printf("Failed to delete crypt data from database: %v\n", err_delete_crypts)
+			http.Error(w, "Internal server error - Failed to delete crypt data", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Deleted crypt data with rowid %d \n", rowId)
+
+		//response := fmt.Sprintf(`{"ip": "%s", "pass": true}`, clientIP)
+		response := fmt.Sprintf(`{"beken-token": "%s"}`, newToken)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // Send a 200 OK status
+		w.Write([]byte(response))
+
+		log.Printf("Sent: %s\n", response)
+
+	}
+}
+
+func httpPassHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
@@ -821,12 +1058,14 @@ func main() {
 	defer database.Close()
 
 	http.HandleFunc("/beken/post", httpPostHandler(database))
+	http.HandleFunc("/beken/token", httpTokenHandler(database))
+	http.HandleFunc("/beken/pass", httpPassHandler(database))
 
 	cache := NewCache(30 * time.Minute)
 	//http.HandleFunc("/beken/post", httpPostHandler(database, cache))
 	http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
-	http.HandleFunc("/beken/token", httpTokenHandler(database, cache))
-	http.HandleFunc("/beken/pass", httpPassHandler(database, cache))
+	//http.HandleFunc("/beken/token", httpTokenHandler(database, cache))
+	//http.HandleFunc("/beken/pass", httpPassHandler(database, cache))
 
 	// Serve static content
 	http.Handle("/beken/client/", contentTypeSetter(http.StripPrefix("/beken/client", http.FileServer(http.Dir("./static_content/client")))))
