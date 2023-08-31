@@ -820,6 +820,8 @@ func main() {
 	}
 	defer database.Close()
 
+	http.HandleFunc("/beken/post", httpPostHandler(database))
+
 	cache := NewCache(30 * time.Minute)
 	//http.HandleFunc("/beken/post", httpPostHandler(database, cache))
 	http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
