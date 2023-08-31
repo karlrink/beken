@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-var version = "1.0.0.🐕-2023-08-31"
+var version = "1.0.0.🐕-2023-08-31.touer-1"
 
 func usage() string {
 
@@ -36,17 +36,6 @@ Options:
 
 <db>  list-tables
 
-<db>  proc-ips
-
-<db>  list-procs
-<db>  del-proc n
-<db>  purge-procs
-
-<db>  list-ips
-<db>  add-ip ip data
-<db>  del-ip ip
-<db>  purge-ips
-
 <db>  list-tokens
 <db>  add-token token data
 <db>  set-token-time token 2021-01-01T16:20:00Z
@@ -55,10 +44,10 @@ Options:
 
 <db>  gen-token
 
-<db>  list-configs
-<db>  add-config name json
-<db>  del-config name
-<db>  purge-configs
+<db>  list-keys
+<db>  add-key n name data
+<db>  del-key name
+<db>  purge-keys
 
 <db>  list-crypts
 <db>  add-crypt n name data
@@ -66,10 +55,25 @@ Options:
 <db>  de-crypt name iv key
 <db>  purge-crypts
 
-<db>  list-keys
-<db>  add-key n name data
-<db>  del-key name
-<db>  purge-keys
+<db>  list-configs
+<db>  add-config name json
+<db>  del-config name
+<db>  purge-configs
+
+<db>  list-ips
+<db>  add-ip ip data
+<db>  del-ip ip
+<db>  purge-ips
+
+<db>  proc-ips
+
+<db>  list-procs
+<db>  del-proc n
+<db>  purge-procs
+
+iptables-allow ip
+postfix-allow ip
+
 
 `
 	return usage
@@ -91,6 +95,12 @@ func main() {
 			Errorf("Failed to get SQLite version: %v\n", err)
 		}
 		Println("Sqlite3: " + sqlite3version)
+		return
+	case "iptables-allow":
+		iptablesAllow(os.Args[2])
+		return
+	case "postfix-allow":
+		postfixAllow(os.Args[2])
 		return
 	}
 
@@ -624,9 +634,34 @@ func truncateTable(db *sql.DB, table string) error {
 	return err
 }
 
+func iptablesAllow(ip string) {
+	// Fetch existing rules
+	cmd := exec.Command("bash", "-c", "/usr/sbin/iptables -vnL INPUT")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("Failed to fetch iptables rules: ", err)
+		return
+	}
+
+	// Check if IP exists in current rules
+	if strings.Contains(string(output), ip) {
+		fmt.Println("IP already exists in iptables rules.")
+		return
+	}
+
+	// Add new rule if IP doesn't exist
+	cmdStr := fmt.Sprintf("/usr/sbin/iptables -I INPUT -s %s -j ACCEPT", ip)
+	err = exec.Command("bash", "-c", cmdStr).Run()
+	if err != nil {
+		fmt.Println("Failed iptables: ", err)
+		return
+	}
+	fmt.Println(cmdStr)
+}
+
 //	func ipAllow(ip string, tcpPort int) {
 //	   cmd := fmt.Sprintf("iptables -I INPUT -s %s -p tcp --dport %d -j ACCEPT", ip, tcpPort)
-func iptablesAllow(ip string) {
+func iptablesAllow_V1(ip string) {
 	cmd := fmt.Sprintf("/usr/sbin/iptables -I INPUT -s %s -j ACCEPT", ip)
 	err := exec.Command("bash", "-c", cmd).Run()
 	if err != nil {
@@ -637,6 +672,74 @@ func iptablesAllow(ip string) {
 }
 
 func postfixAllow(ip string) {
+	/*
+		/etc/postfix/client_access
+		192.168.1.101 OK
+		postmap /etc/postfix/client_access
+		systemctl reload postfix
+	*/
+
+	filePath := "/etc/postfix/client_access"
+	content := ip + " OK\n"
+
+	// Check if IP already exists in the file
+	existingFile, err := os.Open(filePath)
+	if err == nil { // No error means file exists
+		defer existingFile.Close()
+
+		scanner := bufio.NewScanner(existingFile)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, ip+" ") {
+				fmt.Fprintf(os.Stderr, "IP exists in file: %s\n", ip)
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
+			return
+		}
+	}
+
+	// Open the file for appending. If the file does not exist, create it.
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Write the content to the file.
+	if _, err := file.WriteString(content); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing to file: %v\n", err)
+		return
+	}
+
+	fmt.Println("Postfix appended " + ip + " successfully!")
+
+	//postfix admin...
+
+	//postmap file
+	postmap := exec.Command("/usr/sbin/postmap", filePath)
+	err_postmap := postmap.Run()
+	if err_postmap != nil {
+		fmt.Println("Failed postmap:", err_postmap)
+		return
+	}
+	fmt.Println("Postmap " + filePath + " success.")
+
+	//reload postfix
+	reload := exec.Command("/usr/bin/systemctl", "reload", "postfix")
+	err_reload := reload.Run()
+	if err_reload != nil {
+		fmt.Println("Failed systemctl reload postfix:", err_reload)
+		return
+	}
+	fmt.Println("Postfix reload success")
+
+}
+
+func postfixAllow_V1(ip string) {
 	/*
 		/etc/postfix/client_access
 		192.168.1.101 OK
@@ -689,49 +792,6 @@ func postfixAllow(ip string) {
 }
 
 //---
-
-func decryptName(base64Ciphertext string, base64Iv string, key string) error {
-
-	//key := []byte("mysecretpassword")
-
-	unBase64Ciphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
-	if err != nil {
-		return err
-	}
-
-	unBase64Iv, err := base64.StdEncoding.DecodeString(base64Iv)
-	if err != nil {
-		return err
-	}
-
-	decrypted, err := aesDecrypt(unBase64Ciphertext, []byte(key), unBase64Iv)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(decrypted)) // Convert byte array to string here
-
-	return nil
-}
-
-func aesDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-
-	plainTextBytes, err := gcm.Open(nil, iv, ciphertext, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return plainTextBytes, nil
-}
 
 func genToken(db *sql.DB) error {
 	//func genToken() error {
@@ -833,6 +893,49 @@ func genToken(db *sql.DB) error {
 
 	fmt.Println("Generated beken_token:", bekenToken)
 	return nil
+}
+
+func decryptName(base64Ciphertext string, base64Iv string, key string) error {
+
+	//key := []byte("mysecretpassword")
+
+	unBase64Ciphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
+	if err != nil {
+		return err
+	}
+
+	unBase64Iv, err := base64.StdEncoding.DecodeString(base64Iv)
+	if err != nil {
+		return err
+	}
+
+	decrypted, err := aesDecrypt(unBase64Ciphertext, []byte(key), unBase64Iv)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(decrypted)) // Convert byte array to string here
+
+	return nil
+}
+
+func aesDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+
+	plainTextBytes, err := gcm.Open(nil, iv, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return plainTextBytes, nil
 }
 
 // aesEncrypt encrypts plaintext using AES-GCM mode with a given key.
