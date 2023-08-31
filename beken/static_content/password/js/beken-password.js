@@ -1,7 +1,7 @@
 // JavaScript
 const start = performance.now();
 
-const version = 'beken-password.js-0.0.0.🐕';
+const version = 'beken-password.js-1.0.0.🐕-2023-08-30';
 
 // Get a reference to the container div
 const container = document.getElementById('container');
@@ -39,16 +39,16 @@ async function bekenPassWord() {
 
   const beken_token = "bt-" + base64;
 
-  let result;
+  let results;
 
   try {
-      result = await sendTokenRequest(beken_token);
+      results = await tokenRequest(beken_token, beken_user);
   } catch (error) {
       document.getElementById('container').innerText = 'Error: ' + error.message;
       return;  // Stop the function if sendTokenRequest fails
   }
-  //console.log(result.key);
-  //console.log(result.id);
+  //console.log(results.key);
+  //console.log(results.id);
 
   const new_beken_pass  = window.prompt("new pass: ");
 
@@ -61,7 +61,7 @@ async function bekenPassWord() {
   const base64_2 = btoa(String.fromCharCode(...hashArray2));
   const beken_token2 = "bt-" + base64_2;
 
-  const { base64Ciphertext, base64Iv } = await aesEncrypt(new_beken_pass, result.key);
+  const { base64Ciphertext, base64Iv } = await aesEncrypt(new_beken_pass, results.key);
   //console.log("Returned Base64 Ciphertext:", base64Ciphertext);
   //console.log("Returned Base64 Iv:", base64Iv);
     
@@ -69,7 +69,8 @@ async function bekenPassWord() {
 
     let server_token = "BekenToken";  // Declare new_token here
     try {
-        server_token = await postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, result.id);  // Assign new_token directly
+        //server_token = await postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, results.id);  // Assign new_token directly
+        server_token = await postPassRequest(beken_user, beken_token, beken_token2, base64Ciphertext, base64Iv, results.id);
         console.log(beken_token2);
         console.log(server_token);
 
@@ -90,7 +91,7 @@ async function bekenPassWord() {
 
 }
 
-function postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, keyId) {
+function postPassRequest(beken_user, beken_token, new_beken_token, base64Ciphertext, base64Iv, keyId) {
     return new Promise(async (resolve, reject) => {
         // ... (the rest of your code remains the same up to the fetch call)
 
@@ -104,8 +105,9 @@ function postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, ke
 
     var body = JSON.stringify({  // Use the passed var instead of hard-coded value
         "user": beken_user,
-        "pass": base64Ciphertext,
+        "crypt": base64Ciphertext,
         "iv": base64Iv,
+        "token": new_beken_token,
         "id": keyId
     });
 
@@ -123,6 +125,7 @@ function postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, ke
     var timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error("Request timed out after " + timeoutDuration + "ms")), timeoutDuration);
     });
+
         
         try {
             const response = await Promise.race([fetch(beken_host + "/beken/pass", requestOptions), timeoutPromise]);
@@ -134,18 +137,22 @@ function postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, ke
         } catch (error) {
             reject(error);
         }
+
+
     });
+
 }
 
 
 
 
 // This function will make the POST request
-async function sendTokenRequest(beken_token) {
+async function tokenRequest(beken_token, beken_user) {
 
   var headers = new Headers();
   headers.append('Content-Type', 'application/json');
   headers.append('beken-token', beken_token);
+  headers.append('beken-user', beken_user);
 
   var body = JSON.stringify({});
 

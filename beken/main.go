@@ -31,11 +31,12 @@ import (
 var version = "1.0.0.🐕-2023-08-30"
 
 type RequestBody struct {
-	Id   int    `json:"id,omitempty"`
-	User string `json:"user,omitempty"`
-	Pass string `json:"pass,omitempty"`
-	Iv   string `json:"iv,omitempty"`
-	IP   string `json:"ip,omitempty"`
+	Id    int    `json:"id,omitempty"`
+	Token string `json:"token,omitempty"`
+	User  string `json:"user,omitempty"`
+	Crypt string `json:"crypt,omitempty"`
+	Iv    string `json:"iv,omitempty"`
+	IP    string `json:"ip,omitempty"`
 }
 
 type CacheItem struct {
@@ -392,8 +393,8 @@ func httpTokenHandler(db *sql.DB) http.HandlerFunc {
 
 		header_token := r.Header.Get("beken-token")
 		if header_token == "" {
-			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
-			http.Error(w, "Bad Request", http.StatusBadRequest)
+			http.Error(w, "Bad Request missing beken-token", http.StatusBadRequest)
+			//http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 
@@ -405,6 +406,13 @@ func httpTokenHandler(db *sql.DB) http.HandlerFunc {
 
 		//success
 
+		header_user := r.Header.Get("beken-user")
+		if header_user == "" {
+			http.Error(w, "Bad Request missing beken-user", http.StatusBadRequest)
+			//http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
 		random16, err := randomString(16)
 		if err != nil {
 			fmt.Printf("Failed to generate random: %v\n", err)
@@ -413,7 +421,8 @@ func httpTokenHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		// Save to the database
-		result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", random16, header_token)
+		//result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", random16, header_token)
+		result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", random16, header_user)
 		if err != nil {
 			log.Printf("Failed to insert into database: %v\n", err)
 			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
@@ -551,10 +560,12 @@ func httpPassHandler(db *sql.DB) http.HandlerFunc {
 		//requestBody.User
 		//requestBody.Iv
 		//requestBody.Id
+		//requestBody.Token
 
 		//success
 
-		cryptData := requestBody.Pass + " " + requestBody.Iv
+		//cryptData := requestBody.Pass + " " + requestBody.Iv
+		cryptData := requestBody.Crypt + " " + requestBody.Iv
 		userData := requestBody.User
 
 		//requestBody.Id
@@ -567,13 +578,15 @@ func httpPassHandler(db *sql.DB) http.HandlerFunc {
 			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Isert crypts Name %s User %s \n", requestBody.Pass, requestBody.User)
+		//log.Printf("Isert crypts Name %s User %s \n", requestBody.Pass, requestBody.User)
+		log.Printf("Isert crypts Name %s User %s \n", requestBody.Crypt, requestBody.User)
 
 		var keyStr string
 		//log.Printf("requestBody.User: %s\n", requestBody.User)
 		//log.Printf("requestBody.Pass: %s\n", requestBody.Pass)
 		//log.Printf("requestBody.Iv: %s\n", requestBody.Iv)
 		//log.Printf("requestBody.Id: %d\n", requestBody.Id)
+		//log.Printf("requestBody.Id: %d\n", requestBody.Token)
 
 		query1 := db.QueryRow("SELECT name from keys where rowid = ?", requestBody.Id).Scan(&keyStr)
 
@@ -584,7 +597,8 @@ func httpPassHandler(db *sql.DB) http.HandlerFunc {
 		}
 
 		//decrypt name iv keyStr
-		decrypted, err := decryptName(requestBody.Pass, requestBody.Iv, keyStr)
+		//decrypted, err := decryptName(requestBody.Pass, requestBody.Iv, keyStr)
+		decrypted, err := decryptName(requestBody.Crypt, requestBody.Iv, keyStr)
 		if err != nil {
 			log.Printf("Failed decrypt: %v\n", err)
 			http.Error(w, "Internal server error - Failed decrypt", http.StatusInternalServerError)
@@ -608,9 +622,15 @@ func httpPassHandler(db *sql.DB) http.HandlerFunc {
 
 		newToken := "bt-" + base64Encoded
 
+		//requestBody.Token
+
+		log.Printf("newToken         : %s", newToken)
+		log.Printf("requestBody.Token: %s", requestBody.Token)
+
 		//add new token to db
 		// Insert into the database
-		_, err_query2 := db.Exec("INSERT INTO tokens (Name, Data) VALUES (?, ?)", newToken, requestBody.User)
+		//_, err_query2 := db.Exec("INSERT INTO tokens (Name, Data) VALUES (?, ?)", newToken, requestBody.User)
+		_, err_query2 := db.Exec("INSERT INTO tokens (Name, Data) VALUES (?, ?)", requestBody.Token, requestBody.User)
 		if err_query2 != nil {
 			log.Printf("Failed to insert into database: %v\n", err_query2)
 			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
@@ -627,39 +647,42 @@ func httpPassHandler(db *sql.DB) http.HandlerFunc {
 		}
 		log.Printf("Deleted old token %s \n", header_token)
 
-		// Delete old key
-		// query for rowid
-		//rowId := db.QueryRow("SELECT rowid from keys where data = ?", header_token)
-		//_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
-		//_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
+		/*
 
-		// Query rowId from the keys table
-		var rowId int
-		err_query_rowid := db.QueryRow("SELECT rowid FROM keys WHERE data = ?", header_token).Scan(&rowId)
-		if err_query_rowid != nil {
-			log.Printf("Failed to get rowid from database: %v\n", err_query_rowid)
-			http.Error(w, "Internal server error - Failed to get rowid", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("Got rowid %d for header_token %s \n", rowId, header_token)
+			// Delete old key
+			// query for rowid
+			//rowId := db.QueryRow("SELECT rowid from keys where data = ?", header_token)
+			//_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
+			//_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
 
-		// Delete corresponding entry from keys table
-		_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
-		if err_delete_keys != nil {
-			log.Printf("Failed to delete key from database: %v\n", err_delete_keys)
-			http.Error(w, "Internal server error - Failed to delete key", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("Deleted key with rowid %d \n", rowId)
+			// Query rowId from the keys table
+			var rowId int
+			err_query_rowid := db.QueryRow("SELECT rowid FROM keys WHERE data = ?", header_token).Scan(&rowId)
+			if err_query_rowid != nil {
+				log.Printf("Failed to get rowid from database: %v\n", err_query_rowid)
+				http.Error(w, "Internal server error - Failed to get rowid", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Got rowid %d for header_token %s \n", rowId, header_token)
 
-		// Delete corresponding entry from crypts table
-		_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
-		if err_delete_crypts != nil {
-			log.Printf("Failed to delete crypt data from database: %v\n", err_delete_crypts)
-			http.Error(w, "Internal server error - Failed to delete crypt data", http.StatusInternalServerError)
-			return
-		}
-		log.Printf("Deleted crypt data with rowid %d \n", rowId)
+			// Delete corresponding entry from keys table
+			_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
+			if err_delete_keys != nil {
+				log.Printf("Failed to delete key from database: %v\n", err_delete_keys)
+				http.Error(w, "Internal server error - Failed to delete key", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Deleted key with rowid %d \n", rowId)
+
+			// Delete corresponding entry from crypts table
+			_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
+			if err_delete_crypts != nil {
+				log.Printf("Failed to delete crypt data from database: %v\n", err_delete_crypts)
+				http.Error(w, "Internal server error - Failed to delete crypt data", http.StatusInternalServerError)
+				return
+			}
+			log.Printf("Deleted crypt data with rowid %d \n", rowId)
+		*/
 
 		//response := fmt.Sprintf(`{"ip": "%s", "pass": true}`, clientIP)
 		response := fmt.Sprintf(`{"beken-token": "%s"}`, newToken)
@@ -724,7 +747,7 @@ func httpPassHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 
 		//success
 
-		cryptData := requestBody.Pass + " " + requestBody.Iv
+		cryptData := requestBody.Crypt + " " + requestBody.Iv
 		userData := requestBody.User
 
 		//requestBody.Id
@@ -737,7 +760,8 @@ func httpPassHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("Isert crypts Name %s User %s \n", requestBody.Pass, requestBody.User)
+		//log.Printf("Isert crypts Name %s User %s \n", requestBody.Crypt, requestBody.User)
+		log.Printf("Isert crypts Name %s User %s \n", cryptData, requestBody.User)
 
 		var keyStr string
 		//log.Printf("requestBody.User: %s\n", requestBody.User)
@@ -754,7 +778,7 @@ func httpPassHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 		}
 
 		//decrypt name iv keyStr
-		decrypted, err := decryptName(requestBody.Pass, requestBody.Iv, keyStr)
+		decrypted, err := decryptName(requestBody.Crypt, requestBody.Iv, keyStr)
 		if err != nil {
 			log.Printf("Failed decrypt: %v\n", err)
 			http.Error(w, "Internal server error - Failed decrypt", http.StatusInternalServerError)
@@ -1062,10 +1086,10 @@ func main() {
 	http.HandleFunc("/beken/pass", httpPassHandler(database))
 
 	cache := NewCache(30 * time.Minute)
-	//http.HandleFunc("/beken/post", httpPostHandler(database, cache))
+	//http.HandleFunc("/beken/post", httpPostHandler_Cached(database, cache))
 	http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
-	//http.HandleFunc("/beken/token", httpTokenHandler(database, cache))
-	//http.HandleFunc("/beken/pass", httpPassHandler(database, cache))
+	//http.HandleFunc("/beken/token", httpTokenHandler_Cached(database, cache))
+	//http.HandleFunc("/beken/pass", httpPassHandler_Cached(database, cache))
 
 	// Serve static content
 	http.Handle("/beken/client/", contentTypeSetter(http.StripPrefix("/beken/client", http.FileServer(http.Dir("./static_content/client")))))

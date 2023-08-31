@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-var version = "1.0.0.🐕-2023-08-29"
+var version = "1.0.0.🐕-2023-08-30"
 
 func usage() string {
 
@@ -804,7 +804,8 @@ func genToken(db *sql.DB) error {
 	//log.Printf("Isert tokens Name %s Data %s \n", bekenToken, bekenUser)
 
 	// Save to the database
-	result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", key_random16, bekenToken)
+	//result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", key_random16, bekenToken)
+	result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", key_random16, bekenUser)
 	if err != nil {
 		return err
 	}

@@ -1,7 +1,7 @@
 // JavaScript
 const start = performance.now();
 
-const version = 'beken-client.js-0.0.0.🐕';
+const version = 'beken-client.js-1.0.0.🐕-2023-08-30';
 
 // Get a reference to the container div
 const container = document.getElementById('container');
