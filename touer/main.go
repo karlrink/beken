@@ -74,7 +74,13 @@ Options:
 iptables-allow ip
 postfix-allow ip
 
-postfix-passwd 
+postfix-passwd user pass
+dovecot-passwd user pass
+
+<db> postfix-passwd user
+<db> dovecot-passwd user
+
+<db> passwd user
 
 `
 	return usage
@@ -102,6 +108,14 @@ func main() {
 		return
 	case "postfix-allow":
 		postfixAllow(os.Args[2])
+		return
+
+	case "postfix-passwd":
+		postfixPasswdFile(os.Args[2], os.Args[3])
+		return
+
+	case "dovecot-passwd":
+		dovecotPasswdFile(os.Args[2], os.Args[3])
 		return
 	}
 
@@ -173,7 +187,11 @@ func main() {
 			name := os.Args[3]
 			iv := os.Args[4]
 			key := os.Args[5]
-			decryptName(name, iv, key)
+			decrypted, err := decryptB64Cypher(name, iv, key)
+			if err != nil {
+				Errorf("Failed to purge: %v\n", err)
+			}
+			fmt.Println(decrypted)
 
 		case "purge-crypts":
 			err := truncateTable(db, "crypts")
@@ -278,6 +296,17 @@ func main() {
 			if err != nil {
 				Errorf("Failed: %v\n", err)
 			}
+
+		case "postfix-passwd":
+			setPostfixPasswd(db, os.Args[3])
+
+		case "dovecot-passwd":
+			setDovecotPasswd(db, os.Args[3])
+
+		case "passwd":
+			passwd := getLatestPasswd(db, os.Args[3])
+			fmt.Println(passwd)
+			return
 
 		default:
 			Println("Invalid argument: " + os.Args[2])
@@ -896,28 +925,28 @@ func genToken(db *sql.DB) error {
 	return nil
 }
 
-func decryptName(base64Ciphertext string, base64Iv string, key string) error {
+func decryptB64Cypher(base64Ciphertext string, base64Iv string, key string) (string, error) {
 
 	//key := []byte("mysecretpassword")
 
 	unBase64Ciphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	unBase64Iv, err := base64.StdEncoding.DecodeString(base64Iv)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	decrypted, err := aesDecrypt(unBase64Ciphertext, []byte(key), unBase64Iv)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	fmt.Println(string(decrypted)) // Convert byte array to string here
-
-	return nil
+	//fmt.Println(string(decrypted)) // Convert byte array to string here
+	//return nil
+	return string(decrypted), nil
 }
 
 func aesDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
@@ -973,4 +1002,214 @@ func randomString(length int) (string, error) {
 
 //---
 
+func postfixPasswdFile(username string, password string) {
+	// Get username and password from command line arguments
+	//username := os.Args[1]
+	//password := os.Args[2]
+
+	// Open the file for reading
+	filePath := "/etc/postfix/sasl_passwd"
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
+	// Read the file line by line
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+		return
+	}
+
+	// Flag to check if user exists
+	userExists := false
+
+	// Update the file content
+	for i, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == username {
+			lines[i] = fmt.Sprintf("%s %s", username, password)
+			userExists = true
+			break
+		}
+	}
+
+	// If user doesn't exist, append new line
+	if !userExists {
+		lines = append(lines, fmt.Sprintf("%s %s", username, password))
+	}
+
+	// Open file for writing
+	outFile, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return
+	}
+	defer outFile.Close()
+
+	// Write the updated content back to the file
+	writer := bufio.NewWriter(outFile)
+	for _, line := range lines {
+		_, err := writer.WriteString(line + "\n")
+		if err != nil {
+			fmt.Println("Error writing to file:", err)
+			return
+		}
+	}
+	writer.Flush()
+}
+
+func dovecotPasswdFile(username string, password string) {
+	// Get username and password from command line arguments
+	//username := os.Args[1]
+	//password := os.Args[2]
+
+	// Open the file for reading
+	filePath := "/etc/dovecot/dovecot-users"
+	file, err := os.Open(filePath)
+	if err != nil {
+		fmt.Println("Error opening file:", err)
+		return
+	}
+	defer file.Close()
+
+	// Read the file line by line
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading file:", err)
+		return
+	}
+
+	// Flag to check if user exists
+	userExists := false
+
+	// Update the file content
+	for i, line := range lines {
+		fields := strings.SplitN(line, ":{PLAIN}", 2)
+		if len(fields) > 0 && fields[0] == username {
+			lines[i] = fmt.Sprintf("%s:{PLAIN}%s", username, password)
+			userExists = true
+			break
+		}
+	}
+
+	// If user doesn't exist, append new line
+	if !userExists {
+		lines = append(lines, fmt.Sprintf("%s:{PLAIN}%s", username, password))
+	}
+
+	// Open file for writing
+	outFile, err := os.Create(filePath)
+	if err != nil {
+		fmt.Println("Error creating file:", err)
+		return
+	}
+	defer outFile.Close()
+
+	// Write the updated content back to the file
+	writer := bufio.NewWriter(outFile)
+	for _, line := range lines {
+		_, err := writer.WriteString(line + "\n")
+		if err != nil {
+			fmt.Println("Error writing to file:", err)
+			return
+		}
+	}
+	writer.Flush()
+}
+
+func setPostfixPasswd(db *sql.DB, username string) {
+	passwd := getLatestPasswd(db, username)
+	postfixPasswdFile(username, passwd)
+	fmt.Println("set " + username + " /etc/postfix/sasl_passwd")
+}
+
+func setDovecotPasswd(db *sql.DB, username string) {
+	passwd := getLatestPasswd(db, username)
+	dovecotPasswdFile(username, passwd)
+	fmt.Println("set " + username + " /etc/dovecot/dovecot-users")
+}
+
+func getLatestPasswd(db *sql.DB, username string) string {
+	// Initialize a variable to hold the retrieved Name value
+	var rowid int
+	var name_crypt string
+	var name_key string
+
+	// Run the SQL query
+	err1 := db.QueryRow("SELECT rowid,name FROM crypts WHERE data = ? ORDER BY timestamp DESC LIMIT 1", username).Scan(&rowid, &name_crypt)
+
+	// Check for errors from the query
+	if err1 != nil {
+		if err1 == sql.ErrNoRows {
+			// Handle no rows case (i.e., no matching username found)
+			fmt.Printf("No rows found for username: %s\n", username)
+		} else {
+			// Handle other types of errors
+			fmt.Printf("Failed to execute query: %v\n", err1)
+		}
+		return ""
+	}
+
+	// At this point, `name` contains the most recent Name value for the given username
+	// You can now proceed to use `name` to set the postfix password or perform other operations
+	//fmt.Printf("Latest name_crypt for %s is: %s rowid: %d\n", username, name_crypt, rowid)
+
+	// Run the SQL query
+	err2 := db.QueryRow("SELECT name FROM keys WHERE rowid = ?", rowid).Scan(&name_key)
+
+	// Check for errors from the query
+	if err2 != nil {
+		if err2 == sql.ErrNoRows {
+			// Handle no rows case (i.e., no matching username found)
+			fmt.Printf("No rows found for username: %s\n", username)
+		} else {
+			// Handle other types of errors
+			fmt.Printf("Failed to execute query: %v\n", err2)
+		}
+		return ""
+	}
+	//fmt.Printf("name_key %s is: %s rowid: %d\n", username, name_key, rowid)
+
+	//decryptB64Cypher(b64cyphertxt, b64iv, key)
+
+	splitted := strings.Split(name_crypt, " ") // Splitting by single space
+
+	crypt := splitted[0]
+	iv := splitted[1]
+
+	decrypted, err_decrypt := decryptB64Cypher(crypt, iv, name_key)
+	if err_decrypt != nil {
+		fmt.Printf("No rows found for username: %s\n", username)
+		return ""
+	}
+	//fmt.Println(decrypted)
+	return decrypted
+}
+
 // db.Exec("PRAGMA journal_mode=WAL;")
+/*
+
+
+
+
+
+
+
+
+
+
+
+
+
+ */
