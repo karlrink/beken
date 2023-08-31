@@ -74,6 +74,7 @@ Options:
 iptables-allow ip
 postfix-allow ip
 
+postfix-passwd 
 
 `
 	return usage
