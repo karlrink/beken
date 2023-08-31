@@ -395,15 +395,19 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 
 		//requestBody.Pass
 		//requestBody.User
+		//requestBody.Iv
 		//requestBody.Id
 
 		//success
 
-		nameData := requestBody.Pass + " " + requestBody.Iv
-		dataData := requestBody.User
+		cryptData := requestBody.Pass + " " + requestBody.Iv
+		userData := requestBody.User
+
+		//requestBody.Id
 
 		// Insert into the database
-		_, err_query := db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", nameData, dataData)
+		//_, err_query := db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", cryptData, userData)
+		_, err_query := db.Exec("INSERT INTO crypts (rowid, Name, Data) VALUES (?, ?, ?)", requestBody.Id, cryptData, userData)
 		if err_query != nil {
 			log.Printf("Failed to insert into database: %v\n", err_query)
 			http.Error(w, "Internal server error - Failed insert into database", http.StatusInternalServerError)
@@ -411,55 +415,13 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 		}
 		log.Printf("Isert crypts Name %s User %s \n", requestBody.Pass, requestBody.User)
 
-		// get last insert id here
-		// Get last inserted ID
-		//lastID, err := result.LastInsertId()
-		//if err != nil {
-		//	log.Printf("Failed to get last rowid: %v\n", err)
-		//}
-
-		//prepar new token, put in db, and send back to client
-
-		// TODO
-
-		// need pass.  is decrypt
-		//<db>  de-crypt name iv key
-		// decryptName(name, iv, key)
-		//
-		// name, iv are requestBody.Pass split.(' ')
-		// key is in db... lastID?
-
-		//lookup key in db (header_token is data list-keys)
 		var keyStr string
-
-		//var keyId int
-
-		//FIX WRONG QUERY gets wrong key...
-		//./touer ../beken/beken.db de-crypt VgjHjrIZNLUJLa3ic0Mo4faf DX853dDYDmhZIa6Q a6369dcf5fa35aa471983e4448b27ce7
-		//./touer ../beken/beken.db de-crypt VgjHjrIZNLUJLa3ic0Mo4faf DX853dDYDmhZIa6Q 12c1f4af944c8981050e3b4bcb7bc2c9
-
-		//err := db.QueryRow("SELECT name from keys where data = ?", header_token)
-
-		//query1 := db.QueryRow("SELECT name from keys where data = ?", header_token).Scan(&keyStr)
-
-		// Convert string to integer using strconv.Atoi
-		//keyId, err := strconv.Atoi(requestBody.Id)
-		//if err != nil {
-		//	log.Printf("Failed Conversion error: %v\n", err)
-		//	http.Error(w, "Internal server error - Failed Conversion", http.StatusInternalServerError)
-		//	return
-		//}
-		//query1 := db.QueryRow("SELECT name from keys where rowid = ?", keyId).Scan(&keyStr)
-
-		log.Printf("requestBody.User: %s\n", requestBody.User)
-		log.Printf("requestBody.Pass: %s\n", requestBody.Pass)
-		log.Printf("requestBody.Iv: %s\n", requestBody.Iv)
-		log.Printf("requestBody.Id: %d\n", requestBody.Id)
+		//log.Printf("requestBody.User: %s\n", requestBody.User)
+		//log.Printf("requestBody.Pass: %s\n", requestBody.Pass)
+		//log.Printf("requestBody.Iv: %s\n", requestBody.Iv)
+		//log.Printf("requestBody.Id: %d\n", requestBody.Id)
 
 		query1 := db.QueryRow("SELECT name from keys where rowid = ?", requestBody.Id).Scan(&keyStr)
-
-		//keyId
-		//query1 := db.QueryRow("SELECT name from keys where rowid = ?", keyId).Scan(&keyStr)
 
 		if query1 != nil {
 			log.Printf("Failed SELECT name from keys: %v\n", query1)
@@ -467,23 +429,7 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			return
 		}
 
-		//now decrypt name iv keyStr
-
-		//log.Printf(key_data)
-		//splitted := strings.Fields(key_data)
-		//splitted := strings.Fields(requestBody.Pass)
-		//cTxt := splitted[0]
-		//cIv := splitted[1]
-
-		//err := decryptName(unBase64Ciphertext, base64Iv, keyStr)
-		//decrypted, err := decryptName(cTxt, cIv, keyStr)
-		//decrypted, err := decryptName(cTxt, cIv, keyStr)
-
-		//log.Printf(cTxt)
-		//log.Printf(cIv)
-		//log.Printf(keyStr)
-
-		//decrypted, err := decryptName(cTxt, cIv, keyStr)
+		//decrypt name iv keyStr
 		decrypted, err := decryptName(requestBody.Pass, requestBody.Iv, keyStr)
 		if err != nil {
 			log.Printf("Failed decrypt: %v\n", err)
@@ -500,18 +446,15 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 		hash := sha256.New()
 		hash.Write([]byte(data))
 		hashedData := hash.Sum(nil)
-
 		//log.Printf("hash data: %v\n", hashedData)
 
 		// Perform Base64 encoding
 		base64Encoded := base64.StdEncoding.EncodeToString(hashedData)
-
 		//log.Printf("base64Encoded: %v\n", base64Encoded)
 
 		newToken := "bt-" + base64Encoded
 
 		//add new token to db
-
 		// Insert into the database
 		_, err_query2 := db.Exec("INSERT INTO tokens (Name, Data) VALUES (?, ?)", newToken, requestBody.User)
 		if err_query2 != nil {
@@ -520,6 +463,49 @@ func httpPassHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 			return
 		}
 		log.Printf("Isert tokens Name %s Data %s \n", newToken, requestBody.User)
+
+		// Delete/Clean up old token
+		_, err_delete := db.Exec("DELETE FROM tokens WHERE Name = ?", header_token)
+		if err_delete != nil {
+			log.Printf("Failed to delete old token from database: %v\n", err_delete)
+			http.Error(w, "Internal server error - Failed to delete old token", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Deleted old token %s \n", header_token)
+
+		// Delete old key
+		// query for rowid
+		//rowId := db.QueryRow("SELECT rowid from keys where data = ?", header_token)
+		//_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
+		//_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
+
+		// Query rowId from the keys table
+		var rowId int
+		err_query_rowid := db.QueryRow("SELECT rowid FROM keys WHERE data = ?", header_token).Scan(&rowId)
+		if err_query_rowid != nil {
+			log.Printf("Failed to get rowid from database: %v\n", err_query_rowid)
+			http.Error(w, "Internal server error - Failed to get rowid", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Got rowid %d for header_token %s \n", rowId, header_token)
+
+		// Delete corresponding entry from keys table
+		_, err_delete_keys := db.Exec("DELETE FROM keys WHERE rowid = ?", rowId)
+		if err_delete_keys != nil {
+			log.Printf("Failed to delete key from database: %v\n", err_delete_keys)
+			http.Error(w, "Internal server error - Failed to delete key", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Deleted key with rowid %d \n", rowId)
+
+		// Delete corresponding entry from crypts table
+		_, err_delete_crypts := db.Exec("DELETE FROM crypts WHERE rowid = ?", rowId)
+		if err_delete_crypts != nil {
+			log.Printf("Failed to delete crypt data from database: %v\n", err_delete_crypts)
+			http.Error(w, "Internal server error - Failed to delete crypt data", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Deleted crypt data with rowid %d \n", rowId)
 
 		//response := fmt.Sprintf(`{"ip": "%s", "pass": true}`, clientIP)
 		response := fmt.Sprintf(`{"beken-token": "%s"}`, newToken)
@@ -756,16 +742,6 @@ func main() {
 	// Serve static content
 	http.Handle("/beken/client/", contentTypeSetter(http.StripPrefix("/beken/client", http.FileServer(http.Dir("./static_content/client")))))
 	http.Handle("/beken/password/", contentTypeSetter(http.StripPrefix("/beken/password", http.FileServer(http.Dir("./static_content/password")))))
-
-	/*
-		http.HandleFunc("/beken/client/", func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, "/beken/client", http.StatusMovedPermanently)
-		})
-
-		http.HandleFunc("/beken/password/", func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, "/beken/password", http.StatusMovedPermanently)
-		})
-	*/
 
 	port := "9480"
 	logger.Printf("Starting server %s on port:%s\n", version, port)

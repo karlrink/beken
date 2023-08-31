@@ -1,18 +1,26 @@
 package main
 
 import (
+	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"database/sql"
 
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/term"
 )
 
 var version = "1.0.0.🐕-2023-08-29"
@@ -44,6 +52,8 @@ Options:
 <db>  set-token-time token 2021-01-01T16:20:00Z
 <db>  del-token token
 <db>  purge-tokens
+
+<db>  gen-token
 
 <db>  list-configs
 <db>  add-config name json
@@ -252,6 +262,12 @@ func main() {
 				Errorf("Failed to purge: %v\n", err)
 			}
 
+		case "gen-token":
+			err := genToken(db)
+			if err != nil {
+				Errorf("Failed: %v\n", err)
+			}
+
 		default:
 			Println("Invalid argument: " + os.Args[2])
 		}
@@ -417,58 +433,6 @@ func listDataRows(db *sql.DB, table string) {
 		Errorf("Failed during rows iteration: %v\n", err)
 	}
 }
-
-/*
-func listTokens(db *sql.DB) {
-	rows, err := db.Query("SELECT rowid, Name, Data, Timestamp FROM tokens")
-	if err != nil {
-		Errorf("Failed to query tokens: %v\n", err)
-	}
-	defer rows.Close()
-
-	//fmt.Println("Tokens in the database:")
-	//fmt.Println("Token\tData\tTimestamp")
-	for rows.Next() {
-		var rowid int
-		var token, data, timestamp string
-		if err := rows.Scan(&rowid, &token, &data, &timestamp); err != nil {
-			Printf("Failed to scan row: %v", err)
-			continue
-		}
-		Printf("%s\t%s\t[%d]%s\n", token, data, rowid, timestamp)
-	}
-
-	// Check for errors from iterating over rows.
-	if err := rows.Err(); err != nil {
-		Errorf("Failed during rows iteration: %v\n", err)
-	}
-}
-
-func listIps(db *sql.DB) {
-	rows, err := db.Query("SELECT rowid, Name, Data, Timestamp FROM ips")
-	if err != nil {
-		Errorf("Failed to query ips: %v\n", err)
-	}
-	defer rows.Close()
-
-	//fmt.Println("ips in the database:")
-	//fmt.Println("Ip\tData\tTimestamp")
-	for rows.Next() {
-		var rowid int
-		var ip, data, timestamp string
-		if err := rows.Scan(&rowid, &ip, &data, &timestamp); err != nil {
-			Printf("Failed to scan row: %v", err)
-			continue
-		}
-		Printf("%s\t%s\t[%d]%s\n", ip, data, rowid, timestamp)
-	}
-
-	// Check for errors from iterating over rows.
-	if err := rows.Err(); err != nil {
-		Errorf("Failed during rows iteration: %v\n", err)
-	}
-}
-*/
 
 func listProcs(db *sql.DB) {
 	rows, err := db.Query("SELECT rowid,* FROM procs")
@@ -767,6 +731,143 @@ func aesDecrypt(ciphertext []byte, key []byte, iv []byte) ([]byte, error) {
 	}
 
 	return plainTextBytes, nil
+}
+
+func genToken(db *sql.DB) error {
+	//func genToken() error {
+
+	reader := bufio.NewReader(os.Stdin)
+
+	// Get username
+	fmt.Print("Enter username: ")
+	bekenUser, _ := reader.ReadString('\n')
+	bekenUser = strings.TrimSpace(bekenUser)
+
+	// Get password without echoing it
+	fmt.Print("Enter password: ")
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		//fmt.Println("\nError reading password:", err)
+		return err
+	}
+	newBekenPass := string(passwordBytes)
+	fmt.Println() // Newline for better formatting
+
+	// Generate token
+	text := bekenUser + ":" + newBekenPass
+	data := []byte(text)
+	hasher := sha256.New()
+	hasher.Write(data)
+	hashedData := hasher.Sum(nil)
+
+	// Base64 encode
+	base64Encoded := base64.StdEncoding.EncodeToString(hashedData)
+
+	// Prepend "bt-" to base64 encoded string
+	bekenToken := "bt-" + base64Encoded
+
+	fmt.Println("Generated beken_token:", bekenToken)
+
+	// Generate AES-GCM encryption key (for demonstration using a 16 byte key)
+	//key := []byte("1234567890123456") // This is just an example key; you'll want to replace it
+
+	// Generate a random 32-byte key for AES-256
+	//key := make([]byte, 32)
+	//if _, err := io.ReadFull(rand.Reader, key); err != nil {
+	//	panic(err.Error())
+	//}
+
+	key_random16, err := randomString(16)
+	if err != nil {
+		//fmt.Printf("Failed to generate random: %v\n", err)
+		return err
+	}
+
+	// Convert string to []byte
+	key_random16Bytes := []byte(key_random16)
+
+	//iv, ciphertext := aesEncrypt([]byte(newBekenPass), key)
+	iv, ciphertext := aesEncrypt([]byte(newBekenPass), key_random16Bytes)
+	ivBase64 := base64.StdEncoding.EncodeToString(iv)
+	ciphertextBase64 := base64.StdEncoding.EncodeToString(ciphertext)
+	fmt.Println("Encrypted data:", ciphertextBase64+" "+ivBase64)
+	fmt.Println("Key:", key_random16)
+
+	// insert into db
+
+	//add new token to db
+	// Insert into the database
+	_, err_insert_token := db.Exec("INSERT INTO tokens (Name, Data) VALUES (?, ?)", bekenToken, bekenUser)
+	if err_insert_token != nil {
+		return err_insert_token
+	}
+	log.Printf("Isert tokens Name %s Data %s \n", bekenToken, bekenUser)
+
+	// Save to the database
+	result, err := db.Exec("INSERT INTO keys (Name, Data) VALUES (?, ?)", key_random16, bekenToken)
+	if err != nil {
+		return err
+	}
+
+	// Get last inserted ID
+	lastID, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+
+	// Convert lastID from int64 to int
+	idInt := int(lastID)
+
+	//idInt, err := strconv.Atoi(lastID)
+	//if err != nil {
+	//	return err
+	//}
+
+	cryptData := ciphertextBase64 + " " + ivBase64
+	userData := bekenUser
+
+	// Insert into the database
+	//_, err_query := db.Exec("INSERT INTO crypts (Name, Data) VALUES (?, ?)", cryptData, userData)
+	_, err_query := db.Exec("INSERT INTO crypts (rowid, Name, Data) VALUES (?, ?, ?)", idInt, cryptData, userData)
+	if err_query != nil {
+		log.Printf("Failed to insert into database: %v\n", err_query)
+		return err_query
+	}
+	log.Printf("Isert crypts Name %s Data %s \n", cryptData, userData)
+
+	return nil
+}
+
+// aesEncrypt encrypts plaintext using AES-GCM mode with a given key.
+// It returns the IV and the ciphertext.
+func aesEncrypt(plaintext, key []byte) ([]byte, []byte) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Generate a random IV of 12 bytes
+	iv := make([]byte, 12)
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		panic(err.Error())
+	}
+
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	ciphertext := aesgcm.Seal(nil, iv, plaintext, nil)
+	return iv, ciphertext
+}
+
+func randomString(length int) (string, error) {
+	bytes := make([]byte, length)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
 }
 
 //---

@@ -138,53 +138,6 @@ function postPassRequest(beken_user, beken_token, base64Ciphertext, base64Iv, ke
 }
 
 
-function postPassRequest_oldV1(beken_user, beken_token, base64Ciphertext, base64Iv, keyId) {
-
-    var headers = new Headers();
-    headers.append('Content-Type', 'application/json');
-    headers.append('beken-token', beken_token);
-
-    var body = JSON.stringify({});
-
-    //var pass = base64Ciphertext + " " + base64Iv;
-
-    var body = JSON.stringify({  // Use the passed var instead of hard-coded value
-        "user": beken_user,
-        "pass": base64Ciphertext,
-        "iv": base64Iv,
-        "id": keyId
-    });
-
-    var requestOptions = {
-        method: 'POST',
-        headers: headers,
-        body: body
-    };
-
-    var beken_host = window.location.origin;
-
-    console.log(beken_host + "/beken/pass");
-
-    var timeoutDuration = 5000; // 5 seconds
-    var timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Request timed out after " + timeoutDuration + "ms")), timeoutDuration);
-    });
-
-    Promise.race([fetch(beken_host + "/beken/pass", requestOptions), timeoutPromise])
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(result => {
-            document.getElementById('container').innerText = JSON.stringify(result);
-        })
-        .catch(error => {
-            document.getElementById('container').innerText = 'Error: ' + error.message;
-        });
-}
-
 
 
 // This function will make the POST request
