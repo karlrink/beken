@@ -75,6 +75,19 @@ func (c *Cache) Set(token string, exists bool) {
 	}
 }
 
+func tokenExistsInDB(db *sql.DB, token string) bool {
+
+	// If not in cache or expired, check in DB
+	var inDB bool
+	err := db.QueryRow("SELECT EXISTS(SELECT 1 FROM tokens WHERE name=?)", token).Scan(&inDB)
+	if err != nil {
+		log.Printf("Error querying the database: %v\n", err)
+		return false
+	}
+
+	return inDB
+}
+
 func tokenExistsInDBWithCache(db *sql.DB, cache *Cache, token string) bool {
 	// Check in cache first
 	exists, ok := cache.Exists(token)
@@ -147,7 +160,81 @@ func setCorsHeaders(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, beken-token")
 }
 
-func httpPostHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
+func httpPostHandler(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		clientIP := getClientIP(r)
+
+		setCorsHeaders(w) // Set CORS headers
+		if r.Method == http.MethodOptions {
+			// Pre-flight request. Reply successfully:
+			w.WriteHeader(http.StatusOK)
+			log.Printf("Received %s CORS /beken/post request from IP: %s\n", r.Method, clientIP)
+			return
+		}
+		log.Printf("Received %s /beken/post request from IP: %s\n", r.Method, clientIP)
+
+		if r.Method != http.MethodPost {
+			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		header_token := r.Header.Get("beken-token")
+		if header_token == "" {
+			//http.Error(w, "Header beken-token is missing", http.StatusBadRequest)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		//if !tokenExistsInDBWithCacheTime(db, cache, header_token, expireDuration) {
+		if !tokenExistsInDB(db, header_token) {
+			http.Error(w, "Unauthorized Request", http.StatusUnauthorized)
+			return
+		}
+
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Failed to read body", http.StatusInternalServerError)
+			return
+		}
+
+		var requestBody RequestBody
+		err = json.Unmarshal(bodyBytes, &requestBody)
+		if err != nil {
+			http.Error(w, "Failed to parse JSON", http.StatusBadRequest)
+			return
+		}
+
+		//success
+
+		// Save the IP to the database
+		_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", requestBody.IP, header_token)
+		if err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint failed: ips.Name") {
+				//response := fmt.Sprintf("IP address %s is already in the database", requestBody.IP)
+				response := fmt.Sprintf(`{"beken": "%s", "exists": true}`, requestBody.IP)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK) // Send a 200 OK status
+				w.Write([]byte(response))
+				log.Printf("Isert IP attempt by %s \n", clientIP)
+				return
+			}
+
+			log.Printf("Failed to save IP to database: %v\n", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("Isert IP %s \n", requestBody.IP)
+
+		response := fmt.Sprintf(`{"beken": "%s"}`, requestBody.IP)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // Send a 200 OK status
+		w.Write([]byte(response))
+	}
+}
+
+func httpPostHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		clientIP := getClientIP(r)
@@ -734,7 +821,7 @@ func main() {
 	defer database.Close()
 
 	cache := NewCache(30 * time.Minute)
-	http.HandleFunc("/beken/post", httpPostHandler(database, cache))
+	//http.HandleFunc("/beken/post", httpPostHandler(database, cache))
 	http.HandleFunc("/beken/ip", httpIPHandler(database, cache))
 	http.HandleFunc("/beken/token", httpTokenHandler(database, cache))
 	http.HandleFunc("/beken/pass", httpPassHandler(database, cache))
