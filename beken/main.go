@@ -28,7 +28,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🐕-2023-08-30"
+var version = "1.0.0.🐕-2023-08-31"
 
 type RequestBody struct {
 	Id    int    `json:"id,omitempty"`
@@ -170,10 +170,10 @@ func httpPostHandler(db *sql.DB) http.HandlerFunc {
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
-			log.Printf("Received %s CORS /beken/post request from IP: %s\n", r.Method, clientIP)
+			log.Printf("Received %s CORS /beken/post IP: %s\n", r.Method, clientIP)
 			return
 		}
-		log.Printf("Received %s /beken/post request from IP: %s\n", r.Method, clientIP)
+		log.Printf("Received %s /beken/post IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -244,10 +244,10 @@ func httpPostHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
-			log.Printf("Received %s CORS /beken/post request from IP: %s\n", r.Method, clientIP)
+			log.Printf("Received %s CORS /beken/post IP: %s\n", r.Method, clientIP)
 			return
 		}
-		log.Printf("Received %s /beken/post request from IP: %s\n", r.Method, clientIP)
+		log.Printf("Received %s /beken/post IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -317,10 +317,10 @@ func httpIPHandler(db *sql.DB, cache *Cache) http.HandlerFunc {
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
-			log.Printf("Received %s CORS /beken/ip request from IP: %s\n", r.Method, clientIP)
+			log.Printf("Received %s CORS /beken/ip IP: %s\n", r.Method, clientIP)
 			return
 		}
-		log.Printf("Received %s /beken/ip request from IP: %s\n", r.Method, clientIP)
+		log.Printf("Received %s /beken/ip IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodGet {
 			//http.Error(w, "Only GET requests are allowed", http.StatusMethodNotAllowed)
@@ -380,10 +380,10 @@ func httpTokenHandler(db *sql.DB) http.HandlerFunc {
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
-			log.Printf("Received %s CORS /beken/token request from IP: %s\n", r.Method, clientIP)
+			log.Printf("Received %s CORS /beken/token IP: %s\n", r.Method, clientIP)
 			return
 		}
-		log.Printf("Received %s /beken/token request from IP: %s\n", r.Method, clientIP)
+		log.Printf("Received %s /beken/token IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -454,10 +454,10 @@ func httpTokenHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
-			log.Printf("Received %s CORS /beken/token request from IP: %s\n", r.Method, clientIP)
+			log.Printf("Received %s CORS /beken/token IP: %s\n", r.Method, clientIP)
 			return
 		}
-		log.Printf("Received %s /beken/token request from IP: %s\n", r.Method, clientIP)
+		log.Printf("Received %s /beken/token IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -519,10 +519,10 @@ func httpPassHandler(db *sql.DB) http.HandlerFunc {
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
-			log.Printf("Received %s CORS /beken/pass request from IP: %s\n", r.Method, clientIP)
+			log.Printf("Received %s CORS /beken/pass IP: %s\n", r.Method, clientIP)
 			return
 		}
-		log.Printf("Received %s /beken/pass request from IP: %s\n", r.Method, clientIP)
+		log.Printf("Received %s /beken/pass IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)
@@ -624,8 +624,8 @@ func httpPassHandler(db *sql.DB) http.HandlerFunc {
 
 		//requestBody.Token
 
-		log.Printf("newToken         : %s", newToken)
-		log.Printf("requestBody.Token: %s", requestBody.Token)
+		//log.Printf("newToken         : %s", newToken)
+		//log.Printf("requestBody.Token: %s", requestBody.Token)
 
 		//add new token to db
 		// Insert into the database
@@ -704,10 +704,10 @@ func httpPassHandler_Cached(db *sql.DB, cache *Cache) http.HandlerFunc {
 		if r.Method == http.MethodOptions {
 			// Pre-flight request. Reply successfully:
 			w.WriteHeader(http.StatusOK)
-			log.Printf("Received %s CORS /beken/pass request from IP: %s\n", r.Method, clientIP)
+			log.Printf("Received %s CORS /beken/pass IP: %s\n", r.Method, clientIP)
 			return
 		}
-		log.Printf("Received %s /beken/pass request from IP: %s\n", r.Method, clientIP)
+		log.Printf("Received %s /beken/pass IP: %s\n", r.Method, clientIP)
 
 		if r.Method != http.MethodPost {
 			//http.Error(w, "Only POST requests are allowed", http.StatusMethodNotAllowed)

@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-var version = "1.0.0.🐕-2023-08-30"
+var version = "1.0.0.🐕-2023-08-31"
 
 func usage() string {
 
