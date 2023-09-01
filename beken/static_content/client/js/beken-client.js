@@ -1,7 +1,7 @@
 // JavaScript
 const start = performance.now();
 
-const version = 'beken-client.js-1.0.0.🐕-2023-08-30_1';
+const version = 'beken-client.js-1.0.0.🐕-2023-08-30';
 
 // Get a reference to the container div
 const container = document.getElementById('container');
@@ -103,6 +103,13 @@ function sendPostRequest(ipAddress) {
 
     Promise.race([fetch(beken_host + "/beken/post", requestOptions), timeoutPromise])
         .then(response => {
+
+            if (response.status === 401) {
+                // If status is 401, call addBekenToken() and reject the Promise
+                addBekenToken();
+                return Promise.reject(new Error('Unauthorized'));
+            }
+
             if (!response.ok) {
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
