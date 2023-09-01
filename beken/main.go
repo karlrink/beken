@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"strings"
 
-	//"net"
 	"path/filepath"
 
 	"log"
@@ -21,7 +20,6 @@ import (
 	"time"
 
 	"os"
-	//"os/exec"
 
 	"database/sql"
 
@@ -207,7 +205,22 @@ func httpPostHandler(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		if requestBody.IP == "" {
+			http.Error(w, "Bad Request missing ip request body", http.StatusBadRequest)
+			return
+		}
+
 		//success
+
+		// TODO get header_user instead of header_token
+		/*
+			header_user := r.Header.Get("beken-user")
+			if header_user == "" {
+				http.Error(w, "Bad Request missing beken-user header", http.StatusBadRequest)
+				//http.Error(w, "Bad Request", http.StatusBadRequest)
+				return
+			}
+		*/
 
 		// Save the IP to the database
 		_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", requestBody.IP, header_token)
@@ -1021,6 +1034,19 @@ func CreateTables(db *sql.DB) error {
 		return err
 	}
 	_, err = query6.Exec()
+	if err != nil {
+		return err
+	}
+
+	tombs_table := `CREATE TABLE tombs (
+        "Name" TEXT,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	query7, err := db.Prepare(tombs_table)
+	if err != nil {
+		return err
+	}
+	_, err = query7.Exec()
 	if err != nil {
 		return err
 	}

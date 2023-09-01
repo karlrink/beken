@@ -23,7 +23,7 @@ import (
 	"golang.org/x/term"
 )
 
-var version = "1.0.0.🐕-2023-08-31.touer-1"
+var version = "1.0.0.🐕-2023-08-31"
 
 func usage() string {
 
@@ -66,10 +66,14 @@ Options:
 <db>  purge-ips
 
 <db>  proc-ips
-
 <db>  list-procs
 <db>  del-proc n
 <db>  purge-procs
+
+<db>  proc-crypts
+<db>  list-tombs
+<db>  del-tomb n
+<db>  purge-tombs
 
 iptables-allow ip
 postfix-allow ip
@@ -80,7 +84,7 @@ dovecot-passwd user pass
 <db> postfix-passwd user
 <db> dovecot-passwd user
 
-<db> passwd user
+<db> latest-passwd user
 
 `
 	return usage
@@ -149,13 +153,19 @@ func main() {
 		case "list-tokens":
 			//listTokens(db)
 			listDataRows(db, "tokens")
+
 		case "list-procs":
 			listProcs(db)
-			//listDataRows(db, "procs")
+
+		case "list-tombs":
+			listTombs(db)
 
 		case "proc-ips":
 			//listNewIPDb(db)
 			procIps(db)
+
+		case "proc-crypts":
+			procCrypts(db)
 
 		case "list-crypts":
 			listDataRows(db, "crypts")
@@ -273,8 +283,26 @@ func main() {
 				Errorf("Failed to del: %v\n", del)
 			}
 
+		case "del-tomb":
+			tomb := os.Args[3]
+			n, err := strconv.Atoi(tomb)
+			if err != nil {
+				Errorf("Error converting rowid to integer: %v\n", err)
+			}
+
+			del := deleteId(db, "tombs", n)
+			if del != nil {
+				Errorf("Failed to del: %v\n", del)
+			}
+
 		case "purge-procs":
 			err := truncateTable(db, "procs")
+			if err != nil {
+				Errorf("Failed to purge: %v\n", err)
+			}
+
+		case "purge-tombs":
+			err := truncateTable(db, "tombs")
 			if err != nil {
 				Errorf("Failed to purge: %v\n", err)
 			}
@@ -303,10 +331,9 @@ func main() {
 		case "dovecot-passwd":
 			setDovecotPasswd(db, os.Args[3])
 
-		case "passwd":
+		case "latest-passwd":
 			passwd := getLatestPasswd(db, os.Args[3])
 			fmt.Println(passwd)
-			return
 
 		default:
 			Println("Invalid argument: " + os.Args[2])
@@ -383,7 +410,7 @@ func listTables(db *sql.DB) {
 
 //---
 
-func getLastProcessedIDDb(db *sql.DB) int {
+func getLastProcessedProcID(db *sql.DB) int {
 	var lastID int
 	err := db.QueryRow("SELECT COALESCE(MAX(rowid), 0) FROM procs").Scan(&lastID)
 	if err != nil {
@@ -392,16 +419,121 @@ func getLastProcessedIDDb(db *sql.DB) int {
 	return lastID
 }
 
-func markIPAsProcessed(db *sql.DB, id int) {
+func getLastProcessedCryptID(db *sql.DB) int {
+	var lastID int
+	err := db.QueryRow("SELECT COALESCE(MAX(rowid), 0) FROM tombs").Scan(&lastID)
+	if err != nil {
+		Errorf("Failed to get the last processed ID: %v\n", err)
+	}
+	return lastID
+}
+
+func getRowCountAndTimeStamp(db *sql.DB, table string) (int, string) {
+	var lastID int
+	var TimeStamp string
+	err := db.QueryRow("SELECT count(*), max(timestamp) FROM "+table).Scan(&lastID, &TimeStamp)
+	if err != nil {
+		Errorf("Failed to get the last processed ID: %v\n", err)
+	}
+	return lastID, TimeStamp
+}
+
+func getRowCount(db *sql.DB, table string) int {
+	var lastID int
+	//var TimeStamp string
+	//err := db.QueryRow("SELECT count(*), max(timestamp) FROM " + table).Scan(&lastID, &TimeStamp)
+	err := db.QueryRow("SELECT count(*) FROM " + table).Scan(&lastID)
+	if err != nil {
+		Errorf("Failed to get the last processed ID: %v\n", err)
+	}
+	return lastID
+}
+
+func markIPsProcessed(db *sql.DB, id int) {
 	_, err := db.Exec("INSERT INTO procs(rowid) VALUES (?)", id)
 	if err != nil {
 		Errorf("Failed to mark IP as processed: %v\n", err)
 	}
 }
 
-// func listNewIPDb(db *sql.DB) {
+func markCryptsProcessed_V2(db *sql.DB, cryptID int) {
+	stmt, err := db.Prepare("UPDATE tombs SET processed = 1 WHERE rowid = ?")
+	if err != nil {
+		Errorf("Failed to prepare statement: %v\n", err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(cryptID)
+	if err != nil {
+		Errorf("Failed to execute statement: %v\n", err)
+	}
+}
+
+func markCryptsProcessed(db *sql.DB, id int) {
+	_, err := db.Exec("INSERT INTO tombs(rowid) VALUES (?)", id)
+	if err != nil {
+		Errorf("Failed to mark Crypt as processed: %v\n", err)
+	}
+}
+
+func procCrypts(db *sql.DB) {
+	lastID := getLastProcessedCryptID(db)
+	//Printf("Crypt lastID: %d\n", lastID)
+
+	rows, err := db.Query("SELECT rowid, Data FROM crypts WHERE rowid > ?", lastID)
+	if err != nil {
+		Errorf("Failed to query: %v\n", err)
+	}
+
+	// Store new Crypts to process later
+	type cryptInfo struct {
+		id       int
+		username string
+	}
+	var newCrypts []cryptInfo
+
+	for rows.Next() {
+		var id int
+		var username string
+		if err := rows.Scan(&id, &username); err != nil {
+			Printf("Failed to scan row: %v", err)
+			continue
+		}
+		newCrypts = append(newCrypts, cryptInfo{id: id, username: username})
+	}
+
+	// Close rows as soon as you're done iterating
+	rows.Close()
+
+	// Check for errors from iterating over rows.
+	if err := rows.Err(); err != nil {
+		Errorf("Failed during rows iteration: %v\n", err)
+	}
+
+	// Now process the Crypts after closing the rows
+	var count int
+	for _, info := range newCrypts {
+		fmt.Printf("New Crypt: %d %s\n", info.id, info.username)
+		markCryptsProcessed(db, info.id)
+
+		setPostfixPasswd(db, info.username)
+		setDovecotPasswd(db, info.username)
+
+		count++
+	}
+
+	if count > 0 {
+		fmt.Println("Processed", count, "rows")
+
+		postfixPostMapReload("/etc/postfix/sasl_passwd")
+		dovecotRestart()
+	}
+
+}
+
 func procIps(db *sql.DB) {
-	lastID := getLastProcessedIDDb(db)
+	lastID := getLastProcessedProcID(db)
+	//Printf("Crypt lastID: %d\n", lastID)
 
 	rows, err := db.Query("SELECT rowid, Name FROM ips WHERE rowid > ?", lastID)
 	if err != nil {
@@ -437,7 +569,7 @@ func procIps(db *sql.DB) {
 	for _, info := range newIPs {
 		Printf("New IP: %s\n", info.ipAddress)
 
-		markIPAsProcessed(db, info.id)
+		markIPsProcessed(db, info.id)
 
 		iptablesAllow(info.ipAddress)
 
@@ -483,6 +615,29 @@ func listProcs(db *sql.DB) {
 
 	//fmt.Println("ips in the database:")
 	//fmt.Println("Ip\tData\tTimestamp")
+	for rows.Next() {
+		var rowid int
+		var name, data, timestamp sql.NullString
+		if err := rows.Scan(&rowid, &name, &data, &timestamp); err != nil {
+			Printf("Failed to scan row: %v", err)
+			continue
+		}
+		Printf("%d\t%s\t%s\t%s\n", rowid, name.String, data.String, timestamp.String)
+	}
+
+	// Check for errors from iterating over rows.
+	if err := rows.Err(); err != nil {
+		Errorf("Failed during rows iteration: %v\n", err)
+	}
+}
+
+func listTombs(db *sql.DB) {
+	rows, err := db.Query("SELECT rowid,* FROM tombs")
+	if err != nil {
+		Errorf("Failed to query crypts: %v\n", err)
+	}
+	defer rows.Close()
+
 	for rows.Next() {
 		var rowid int
 		var name, data, timestamp sql.NullString
@@ -687,6 +842,41 @@ func iptablesAllow(ip string) {
 		return
 	}
 	fmt.Println(cmdStr)
+}
+
+func dovecotRestart() {
+
+	//restart dovecote
+	restart := exec.Command("/usr/bin/systemctl", "restart", "dovecot")
+	err_restart := restart.Run()
+	if err_restart != nil {
+		fmt.Println("Failed systemctl restart dovecot:", err_restart)
+		return
+	}
+	fmt.Println("Dovecot restart success")
+
+}
+
+func postfixPostMapReload(filePath string) {
+	//postfix admin...
+
+	//postmap file
+	postmap := exec.Command("/usr/sbin/postmap", filePath)
+	err_postmap := postmap.Run()
+	if err_postmap != nil {
+		fmt.Println("Failed postmap:", err_postmap)
+		return
+	}
+	fmt.Println("Postmap " + filePath + " success.")
+
+	//reload postfix
+	reload := exec.Command("/usr/bin/systemctl", "reload", "postfix")
+	err_reload := reload.Run()
+	if err_reload != nil {
+		fmt.Println("Failed systemctl reload postfix:", err_reload)
+		return
+	}
+	fmt.Println("Postfix reload success")
 }
 
 //	func ipAllow(ip string, tcpPort int) {
@@ -1190,7 +1380,7 @@ func getLatestPasswd(db *sql.DB, username string) string {
 
 	decrypted, err_decrypt := decryptB64Cypher(crypt, iv, name_key)
 	if err_decrypt != nil {
-		fmt.Printf("No rows found for username: %s\n", username)
+		fmt.Printf("Failed decrypt: %v\n", err_decrypt)
 		return ""
 	}
 	//fmt.Println(decrypted)
