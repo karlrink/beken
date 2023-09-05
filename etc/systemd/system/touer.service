@@ -1,0 +1,14 @@
+[Unit]
+Description=touer service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/beken-touer/touer
+Environment="PATH=/opt/beken-touer/touer:/usr/bin:/usr/sbin:/bin:/sbin"
+ExecStart=/opt/beken-touer/touer/touer daemon &
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=beken service
+After=network.target
+
+[Service]
+Type=simple
+User=beken
+Group=beken
+WorkingDirectory=/opt/beken-touer/beken
+Environment="PATH=/opt/beken-touer/beken:/usr/bin:/usr/sbin:/bin:/sbin"
+ExecStart=/opt/beken-touer/beken/beken /opt/beken-touer/data &
+
+[Install]
+WantedBy=multi-user.target
