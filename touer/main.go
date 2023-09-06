@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -11,11 +12,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"database/sql"
 
@@ -23,7 +26,7 @@ import (
 	"golang.org/x/term"
 )
 
-var version = "1.0.0.🐕-2023-08-31"
+var version = "1.0.1.🐕-2023-09-06"
 
 func usage() string {
 
@@ -83,8 +86,9 @@ dovecot-passwd user pass
 
 <db> postfix-passwd user
 <db> dovecot-passwd user
-
 <db> latest-passwd user
+
+<db> daemon <dir/>
 
 `
 	return usage
@@ -161,11 +165,18 @@ func main() {
 			listTombs(db)
 
 		case "proc-ips":
-			//listNewIPDb(db)
-			procIps(db)
+			err := procIps(db)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
 		case "proc-crypts":
-			procCrypts(db)
+			err := procCrypts(db)
+			if err != nil {
+				fmt.Printf("Error: %v\n", err)
+				return
+			}
 
 		case "list-crypts":
 			listDataRows(db, "crypts")
@@ -335,6 +346,24 @@ func main() {
 			passwd := getLatestPasswd(db, os.Args[3])
 			fmt.Println(passwd)
 
+		case "daemon":
+
+			dirPath := os.Args[3]
+			// Check if file exists
+			hashFile := dirPath + "touer.hash"
+			if _, err := os.Stat(hashFile); os.IsNotExist(err) {
+				// File does not exist, create it
+				file, err := os.Create(hashFile)
+				if err != nil {
+					fmt.Println("Error creating file:", err)
+					return
+				}
+				defer file.Close()
+				log.Println("File created:", hashFile)
+			}
+
+			runDaemon(dbFile, os.Args[3])
+
 		default:
 			Println("Invalid argument: " + os.Args[2])
 		}
@@ -410,22 +439,24 @@ func listTables(db *sql.DB) {
 
 //---
 
-func getLastProcessedProcID(db *sql.DB) int {
+func getLastProcessedProcID(db *sql.DB) (int, error) {
 	var lastID int
 	err := db.QueryRow("SELECT COALESCE(MAX(rowid), 0) FROM procs").Scan(&lastID)
 	if err != nil {
-		Errorf("Failed to get the last processed ID: %v\n", err)
+		//Errorf("Failed to get the last processed ID: %v\n", err)
+		return 0, err
 	}
-	return lastID
+	return lastID, nil
 }
 
-func getLastProcessedCryptID(db *sql.DB) int {
+func getLastProcessedCryptID(db *sql.DB) (int, error) {
 	var lastID int
 	err := db.QueryRow("SELECT COALESCE(MAX(rowid), 0) FROM tombs").Scan(&lastID)
 	if err != nil {
-		Errorf("Failed to get the last processed ID: %v\n", err)
+		//Errorf("Failed to get the last processed ID: %v\n", err)
+		return 0, err
 	}
-	return lastID
+	return lastID, nil
 }
 
 func getRowCountAndTimeStamp(db *sql.DB, table string) (int, string) {
@@ -476,13 +507,17 @@ func markCryptsProcessed(db *sql.DB, id int) {
 	}
 }
 
-func procCrypts(db *sql.DB) {
-	lastID := getLastProcessedCryptID(db)
-	//Printf("Crypt lastID: %d\n", lastID)
+func procCrypts(db *sql.DB) error {
+
+	lastID, err := getLastProcessedCryptID(db)
+	if err != nil {
+		return err
+	}
 
 	rows, err := db.Query("SELECT rowid, Data FROM crypts WHERE rowid > ?", lastID)
 	if err != nil {
-		Errorf("Failed to query: %v\n", err)
+		//Errorf("Failed to query: %v\n", err)
+		return err
 	}
 
 	// Store new Crypts to process later
@@ -507,7 +542,8 @@ func procCrypts(db *sql.DB) {
 
 	// Check for errors from iterating over rows.
 	if err := rows.Err(); err != nil {
-		Errorf("Failed during rows iteration: %v\n", err)
+		//Errorf("Failed during rows iteration: %v\n", err)
+		return err
 	}
 
 	// Now process the Crypts after closing the rows
@@ -529,15 +565,20 @@ func procCrypts(db *sql.DB) {
 		dovecotRestart()
 	}
 
+	return nil
 }
 
-func procIps(db *sql.DB) {
-	lastID := getLastProcessedProcID(db)
-	//Printf("Crypt lastID: %d\n", lastID)
+func procIps(db *sql.DB) error {
+
+	lastID, err := getLastProcessedProcID(db)
+	if err != nil {
+		return err
+	}
 
 	rows, err := db.Query("SELECT rowid, Name FROM ips WHERE rowid > ?", lastID)
 	if err != nil {
-		Errorf("Failed to query new IPs: %v\n", err)
+		//Errorf("Failed to query new IPs: %v\n", err)
+		return err
 	}
 
 	// Store new IPs to process later
@@ -562,7 +603,8 @@ func procIps(db *sql.DB) {
 
 	// Check for errors from iterating over rows.
 	if err := rows.Err(); err != nil {
-		Errorf("Failed during rows iteration: %v\n", err)
+		//Errorf("Failed during rows iteration: %v\n", err)
+		return err
 	}
 
 	// Now process the IPs after closing the rows
@@ -576,6 +618,8 @@ func procIps(db *sql.DB) {
 		postfixAllow(info.ipAddress)
 
 	}
+
+	return nil
 }
 
 //---
@@ -1385,6 +1429,96 @@ func getLatestPasswd(db *sql.DB, username string) string {
 	}
 	//fmt.Println(decrypted)
 	return decrypted
+}
+
+//---
+
+func calculateFileHash(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := md5.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func getHashFromFile(filePath string) (string, error) {
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+func saveHashToFile(filePath, hash string) error {
+	return ioutil.WriteFile(filePath, []byte(hash), 0644)
+}
+
+func runDaemon(dbFile string, dirPath string) {
+
+	touerLog := dirPath + "touer.log"
+	hashFile := dirPath + "touer.hash"
+
+	// Setup logger to write to touer.log
+	logFile, err := os.OpenFile(touerLog, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer logFile.Close()
+
+	logger := log.New(logFile, "", log.LstdFlags)
+	log.SetOutput(logFile) // Redirect standard logger to the file
+
+	prevHash, err := getHashFromFile(hashFile)
+	if err != nil {
+		logger.Fatal("Error reading initial hash: ", err)
+	}
+
+	for {
+		curHash, err := calculateFileHash(dbFile)
+		if err != nil {
+			logger.Fatal("Error calculating current hash: ", err)
+		}
+
+		if curHash != prevHash {
+			//log.Println("Database has changed.")
+			err = saveHashToFile(hashFile, curHash)
+			if err != nil {
+				logger.Fatal("Error saving new hash: ", err)
+			}
+			prevHash = curHash
+
+			// Connect to the SQLite3 database file
+			db, err := sql.Open("sqlite3", dbFile)
+			if err != nil {
+				logger.Fatal("Failed to connect: %s\n", err)
+			}
+			defer db.Close()
+
+			// run procs
+			err_ip := procIps(db)
+			if err_ip != nil {
+				logger.Printf("Error: %v\n", err_ip)
+			}
+
+			err_crypt := procCrypts(db)
+			if err_crypt != nil {
+				logger.Printf("Error: %v\n", err_crypt)
+			}
+
+			db.Close()
+			logger.Println("Database changed and Ran procs.")
+
+		}
+
+		time.Sleep(3 * time.Second)
+	}
 }
 
 // db.Exec("PRAGMA journal_mode=WAL;")

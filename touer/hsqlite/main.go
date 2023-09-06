@@ -4,9 +4,10 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
-	//_ "github.com/mattn/go-sqlite3"
+	"time"
 )
 
 func calculateFileHash(filePath string) (string, error) {
@@ -24,34 +25,47 @@ func calculateFileHash(filePath string) (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
+func getHashFromFile(filePath string) (string, error) {
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return "", err
+	}
+	return string(bytes), nil
+}
+
+func saveHashToFile(filePath, hash string) error {
+	return ioutil.WriteFile(filePath, []byte(hash), 0644)
+}
+
 func main() {
-	dbPath := "your_database.db"
-	// Open the SQLite database.
-	//db, err := sql.Open("sqlite3", dbPath)
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//defer db.Close()
+	//dbPath := "sqlite3.db"
+	//hashFile := "hash.log"
 
-	// Calculate the initial hash of the database file.
-	initialHash, err := calculateFileHash(dbPath)
+	dbPath := os.Args[1]
+	hashFile := os.Args[2]
+
+	prevHash, err := getHashFromFile(hashFile)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error reading initial hash: ", err)
 	}
 
-	// Perform your insert or update operation here.
-	// For example, you can use db.Exec() to execute SQL statements.
+	for {
+		curHash, err := calculateFileHash(dbPath)
+		if err != nil {
+			log.Fatal("Error calculating current hash: ", err)
+		}
 
-	// Calculate the hash of the database file after the operation.
-	updatedHash, err := calculateFileHash(dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
+		if curHash != prevHash {
+			fmt.Println("Database has changed.")
+			err = saveHashToFile(hashFile, curHash)
+			if err != nil {
+				log.Fatal("Error saving new hash: ", err)
+			}
+			prevHash = curHash
+		} else {
+			fmt.Println("Database has not changed.")
+		}
 
-	// Compare the initial and updated hashes to detect changes.
-	if initialHash != updatedHash {
-		fmt.Println("Database has changed due to insert or update.")
-	} else {
-		fmt.Println("Database has not changed.")
+		time.Sleep(1 * time.Second)
 	}
 }

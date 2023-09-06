@@ -8,7 +8,7 @@ User=root
 Group=root
 WorkingDirectory=/opt/beken-touer/touer
 Environment="PATH=/opt/beken-touer/touer:/usr/bin:/usr/sbin:/bin:/sbin"
-ExecStart=/opt/beken-touer/touer/touer daemon &
+ExecStart=/opt/beken-touer/touer/touer /opt/beken-touer/data/beken.db daemon /opt/beken-touer/data/ &
 
 [Install]
 WantedBy=multi-user.target
