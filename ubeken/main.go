@@ -1,7 +1,12 @@
 package main
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/base64"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -118,7 +123,7 @@ func main() {
 
 	for {
 		// Read data from the connection
-		n, _, err := conn.ReadFromUDP(buffer)
+		n, addr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			log.Println("Error reading from UDP connection:", err)
 			continue
@@ -127,7 +132,7 @@ func main() {
 		receivedData := string(buffer[:n])
 
 		// Process each packet in a Goroutine
-		go func(data string) {
+		go func(data string, clientAddr *net.UDPAddr) {
 
 			//receivedData := "x xxxxxxx"
 			//str := strings.Split(data, " ")
@@ -146,11 +151,22 @@ func main() {
 			exists := existsDecrypt(db, data)
 
 			if exists {
+
 				fmt.Println("Data exists in the database:", data)
+
+				// Send a response back to the client
+				response := "your udp received"
+				_, err := conn.WriteToUDP([]byte(response), clientAddr)
+				if err != nil {
+					log.Println("Error sending response to client:", err)
+				}
+				fmt.Println("Sent response %s", clientAddr)
+
 			} else {
+
 				fmt.Println("Data does not exist in the database:", data)
 			}
-		}(receivedData)
+		}(receivedData, addr)
 	}
 }
 
@@ -164,7 +180,7 @@ func existsDecrypt(db *sql.DB, dataStr string) bool {
 
 	str := strings.Split(dataStr, " ")
 	field1 := str[0]
-	//field2 := str[1]
+	field2 := str[1]
 
 	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM rsa_keys WHERE Name = ?), Private FROM rsa_keys WHERE Name = ?", field1, field1).Scan(&exists, &data)
 	if err != nil {
@@ -174,7 +190,115 @@ func existsDecrypt(db *sql.DB, dataStr string) bool {
 
 	fmt.Println(data)
 
+	fmt.Println("base64: " + field2)
+
+	// Decode the base64 encoded string
+	decodedBytes, err := base64.StdEncoding.DecodeString(field2)
+	if err != nil {
+		log.Println("Error decoding base64:", err)
+		return false
+	}
+	fmt.Printf("base64Decoded: %v\n", decodedBytes)
+
+	//decodedString := string(decodedBytes)
+	//fmt.Printf("base64Decoded: %s\n", decodedString)
+
+	//ciphertext, err := hexToBytes(ciphertextHex)
+	//ciphertext, err := hexToBytes(decodedString)
+	//ciphertext, err := hexToBytes(decodedBytes)
+	//if err != nil {
+	//		log.Println("Error hexToBytes: ", err)
+	//		return false
+	//	}
+
+	//plaintext, err := decryptCiphertext(privateKeyFile, ciphertext)
+	//plaintext, err := decryptCiphertext(data, ciphertext)
+
+	plaintext, err := decryptCiphertext(data, decodedBytes)
+	//plaintext, err := decryptCiphertext(data, []byte(decodedBytes))
+	//plaintext, err := decryptCiphertext(data, []byte(field2))
+	//plaintext, err := decryptCiphertext(data, decodedBytes)
+	if err != nil {
+		log.Println("Error decryptCiphertext: ", err)
+		return false
+	}
+
+	fmt.Printf("Decrypted Text: %s\n", plaintext)
+
 	return exists
+}
+
+func decryptCiphertext(privateKeyPEM string, ciphertext []byte) (string, error) {
+
+	block, _ := pem.Decode([]byte(privateKeyPEM))
+	if block == nil {
+		return "", fmt.Errorf("failed to parse PEM block containing the private key")
+	}
+
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+
+	// Decrypt the ciphertext with the private key
+	plaintext, err := rsa.DecryptPKCS1v15(nil, privateKey, ciphertext)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
+}
+
+func hexToBytes(hex string) ([]byte, error) {
+	// Remove spaces and convert hex string to bytes
+	hex = filterHex(hex)
+	hexLen := len(hex)
+	if hexLen%2 != 0 {
+		return nil, fmt.Errorf("hex string length must be even")
+	}
+	bytes := make([]byte, hexLen/2)
+	for i := 0; i < hexLen; i += 2 {
+		if _, err := fmt.Sscanf(hex[i:i+2], "%02x", &bytes[i/2]); err != nil {
+			return nil, err
+		}
+	}
+	return bytes, nil
+}
+
+func filterHex(hex string) string {
+	filteredHex := ""
+	for _, char := range hex {
+		if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F') {
+			filteredHex += string(char)
+		}
+	}
+	return filteredHex
+}
+
+func decryptCiphertext_v1(privateKeyFile string, ciphertext []byte) (string, error) {
+	// Load the private key from the PEM file
+	privateKeyPEM, err := ioutil.ReadFile(privateKeyFile)
+	if err != nil {
+		return "", err
+	}
+
+	block, _ := pem.Decode(privateKeyPEM)
+	if block == nil {
+		return "", fmt.Errorf("failed to parse PEM block containing the private key")
+	}
+
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
+
+	// Decrypt the ciphertext with the private key
+	plaintext, err := rsa.DecryptPKCS1v15(nil, privateKey, ciphertext)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
 }
 
 func existsData_V1(db *sql.DB, name string) bool {
