@@ -182,7 +182,7 @@ func existsDecrypt(db *sql.DB, dataStr string) bool {
 	field1 := str[0]
 	field2 := str[1]
 
-	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM rsa_keys WHERE Name = ?), Private FROM rsa_keys WHERE Name = ?", field1, field1).Scan(&exists, &data)
+	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM public_keys WHERE Name = ?), Data FROM public_keys WHERE Name = ?", field1, field1).Scan(&exists, &data)
 	if err != nil {
 		log.Println("Error QueryRow database:", err)
 		return false
@@ -348,16 +348,14 @@ func cleanupCache(expiration time.Duration) {
 
 func createTables(db *sql.DB) error {
 	// Create table in the database
-	sql := `CREATE TABLE IF NOT EXISTS rsa_keys (
+	sql := `CREATE TABLE IF NOT EXISTS public_keys (
 		"Name" TEXT PRIMARY KEY NOT NULL,
-		"Public" TEXT,
-		"Private" TEXT,
+		"Data" TEXT,
 		"Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
 	_, err := db.Exec(sql)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
