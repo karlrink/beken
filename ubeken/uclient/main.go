@@ -1,13 +1,12 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/base64"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"time"
@@ -34,30 +33,31 @@ func main() {
 	}
 	defer conn.Close()
 
-	publicKeyFile := "public_key.pem"
-	plaintext := "Hello GoLang PublicKey Encryption"
-
-	ciphertext, err := encryptString(publicKeyFile, plaintext)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Encrypted Text: %x\n", ciphertext)
-
-	// Encode the ciphertext as base64 and create a string
-	ciphertextStr := base64.StdEncoding.EncodeToString(ciphertext)
-
-	fmt.Printf("Base64 Text: %x\n", ciphertextStr)
 	//data := []byte("my udpXdata")
+	//dataStr := "x " + ciphertextStr
 
-	// Encode the string to base64
-	//base64String := base64.StdEncoding.EncodeToString([]byte(ciphertext))
-	//fmt.Printf("Encoded: %s\n", base64String)
+	plaintext := "Beken " + time.Now().Format("2006-01-02 15:04:05")
 
-	//dataStr := "x " + base64String
+	key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
+	name := "x_user"
 
-	dataStr := "x " + ciphertextStr
+	base64cipher, base64Nonce := encrypt(plaintext, key)
+
+	dataStr := name + " " + base64cipher + " " + base64Nonce
+
+	fmt.Println("dataStr: " + dataStr)
 
 	data := []byte(dataStr)
+
+	// Calculate the number of bytes in the byte slice
+	byteCount := len(data)
+
+	fmt.Printf("Size of the string in bytes: %d\n", byteCount)
+
+	// Check if the string is greater than 64KB (64 * 1024 bytes)
+	if byteCount > 64*1024 {
+		fmt.Println("The string is greater than 64KB.")
+	}
 
 	_, err = conn.Write(data)
 	if err != nil {
@@ -68,7 +68,8 @@ func main() {
 	fmt.Println("Custom UDP packet sent to", destination)
 
 	// Set a timeout for the read operation
-	timeout := 5 * time.Second
+	//timeout := 5 * time.Second
+	timeout := 1 * time.Second
 	conn.SetReadDeadline(time.Now().Add(timeout))
 
 	buffer := make([]byte, 1024)
@@ -87,28 +88,26 @@ func main() {
 	fmt.Println("Received UDP response:", response)
 }
 
-func encryptString(publicKeyFile string, plaintext string) ([]byte, error) {
-	// Load the public key from the PEM file
-	pubKeyPEM, err := ioutil.ReadFile(publicKeyFile)
+// func encrypt(plaintext string, key []byte) (string, []byte) {
+func encrypt(plaintext string, key []byte) (string, string) {
+	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, err
+		panic(err.Error())
 	}
 
-	block, _ := pem.Decode(pubKeyPEM)
-	if block == nil {
-		return nil, fmt.Errorf("failed to parse PEM block containing the public key")
+	nonce := make([]byte, 12)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		panic(err.Error())
 	}
 
-	pubKey, err := x509.ParsePKCS1PublicKey(block.Bytes)
+	aead, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, err
+		panic(err.Error())
 	}
 
-	// Encrypt the plaintext with the public key
-	ciphertext, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, []byte(plaintext))
-	if err != nil {
-		return nil, err
-	}
+	ciphertext := aead.Seal(nil, nonce, []byte(plaintext), nil)
 
-	return ciphertext, nil
+	base64Cipher := base64.StdEncoding.EncodeToString(ciphertext)
+	base64Nonce := base64.StdEncoding.EncodeToString(nonce)
+	return base64Cipher, base64Nonce
 }

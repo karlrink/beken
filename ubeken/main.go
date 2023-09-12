@@ -1,12 +1,10 @@
 package main
 
 import (
-	"crypto/rsa"
-	"crypto/x509"
+	"crypto/aes"
+	"crypto/cipher"
 	"encoding/base64"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -19,7 +17,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🍁-2023-09-11.0"
+var version = "1.0.0.🍁-2023-09-12"
 
 type CacheEntry struct {
 	Exists     bool
@@ -134,6 +132,9 @@ func main() {
 		// Process each packet in a Goroutine
 		go func(data string, clientAddr *net.UDPAddr) {
 
+			// Convert clientAddr to a string
+			//clientAddrStr := clientAddr.String()
+
 			//receivedData := "x xxxxxxx"
 			//str := strings.Split(data, " ")
 			//field1 := str[0]
@@ -148,11 +149,21 @@ func main() {
 				}
 			*/
 
-			exists := existsDecrypt(db, data)
+			exists := existsDecrypts(db, data)
 
 			if exists {
 
-				fmt.Println("Data exists in the database:", data)
+				fmt.Println("Data exists and decrypts:", data)
+
+				// add clientAddr to db
+
+				// Save the IP to the database
+				_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", clientAddr.String(), "")
+				if err != nil {
+					log.Printf("Failed to save IP to database: %v\n", err)
+				} else {
+					log.Printf("Isert IP %s \n", clientAddr.String())
+				}
 
 				// Send a response back to the client
 				response := "your udp received"
@@ -160,7 +171,7 @@ func main() {
 				if err != nil {
 					log.Println("Error sending response to client:", err)
 				}
-				fmt.Println("Sent response %s", clientAddr)
+				fmt.Println("Sent response %s", clientAddr.String())
 
 			} else {
 
@@ -173,142 +184,67 @@ func main() {
 var cacheMutex sync.RWMutex
 var cache = make(map[string]CacheEntry)
 
-func existsDecrypt(db *sql.DB, dataStr string) bool {
+func existsDecrypts(db *sql.DB, dataStr string) bool {
 
 	var exists bool
 	var data string
 
 	str := strings.Split(dataStr, " ")
-	field1 := str[0]
-	field2 := str[1]
+	field1 := str[0] //name
+	field2 := str[1] //cypher
+	field3 := str[2] //nonce
 
-	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM public_keys WHERE Name = ?), Data FROM public_keys WHERE Name = ?", field1, field1).Scan(&exists, &data)
+	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM client_keys WHERE Name = ?), Data FROM client_keys WHERE Name = ?", field1, field1).Scan(&exists, &data)
 	if err != nil {
 		log.Println("Error QueryRow database:", err)
 		return false
 	}
 
-	fmt.Println(data)
+	//fmt.Println(data) //key
+	//fmt.Println("base64: " + field2)
+	//fmt.Println("base64: " + field3)
 
-	fmt.Println("base64: " + field2)
+	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
+	key := []byte(data) // 32 bytes for AES-256
 
-	// Decode the base64 encoded string
-	decodedBytes, err := base64.StdEncoding.DecodeString(field2)
+	decrypted, err := decrypt(field2, field3, key)
 	if err != nil {
-		log.Println("Error decoding base64:", err)
+		log.Println("Error decrypt:", err)
 		return false
 	}
-	fmt.Printf("base64Decoded: %v\n", decodedBytes)
-
-	//decodedString := string(decodedBytes)
-	//fmt.Printf("base64Decoded: %s\n", decodedString)
-
-	//ciphertext, err := hexToBytes(ciphertextHex)
-	//ciphertext, err := hexToBytes(decodedString)
-	//ciphertext, err := hexToBytes(decodedBytes)
-	//if err != nil {
-	//		log.Println("Error hexToBytes: ", err)
-	//		return false
-	//	}
-
-	//plaintext, err := decryptCiphertext(privateKeyFile, ciphertext)
-	//plaintext, err := decryptCiphertext(data, ciphertext)
-
-	plaintext, err := decryptCiphertext(data, decodedBytes)
-	//plaintext, err := decryptCiphertext(data, []byte(decodedBytes))
-	//plaintext, err := decryptCiphertext(data, []byte(field2))
-	//plaintext, err := decryptCiphertext(data, decodedBytes)
-	if err != nil {
-		log.Println("Error decryptCiphertext: ", err)
-		return false
-	}
-
-	fmt.Printf("Decrypted Text: %s\n", plaintext)
+	fmt.Println("Decrypted:  ", decrypted)
 
 	return exists
 }
 
-func decryptCiphertext(privateKeyPEM string, ciphertext []byte) (string, error) {
+func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, error) {
 
-	block, _ := pem.Decode([]byte(privateKeyPEM))
-	if block == nil {
-		return "", fmt.Errorf("failed to parse PEM block containing the private key")
-	}
-
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
 
-	// Decrypt the ciphertext with the private key
-	plaintext, err := rsa.DecryptPKCS1v15(nil, privateKey, ciphertext)
+	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
+	if err != nil {
+		return "", err
+	}
+
+	decodedNonce, err := base64.StdEncoding.DecodeString(base64Nonce)
+	if err != nil {
+		return "", err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, nil)
 	if err != nil {
 		return "", err
 	}
 
 	return string(plaintext), nil
-}
-
-func hexToBytes(hex string) ([]byte, error) {
-	// Remove spaces and convert hex string to bytes
-	hex = filterHex(hex)
-	hexLen := len(hex)
-	if hexLen%2 != 0 {
-		return nil, fmt.Errorf("hex string length must be even")
-	}
-	bytes := make([]byte, hexLen/2)
-	for i := 0; i < hexLen; i += 2 {
-		if _, err := fmt.Sscanf(hex[i:i+2], "%02x", &bytes[i/2]); err != nil {
-			return nil, err
-		}
-	}
-	return bytes, nil
-}
-
-func filterHex(hex string) string {
-	filteredHex := ""
-	for _, char := range hex {
-		if (char >= '0' && char <= '9') || (char >= 'a' && char <= 'f') || (char >= 'A' && char <= 'F') {
-			filteredHex += string(char)
-		}
-	}
-	return filteredHex
-}
-
-func decryptCiphertext_v1(privateKeyFile string, ciphertext []byte) (string, error) {
-	// Load the private key from the PEM file
-	privateKeyPEM, err := ioutil.ReadFile(privateKeyFile)
-	if err != nil {
-		return "", err
-	}
-
-	block, _ := pem.Decode(privateKeyPEM)
-	if block == nil {
-		return "", fmt.Errorf("failed to parse PEM block containing the private key")
-	}
-
-	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		return "", err
-	}
-
-	// Decrypt the ciphertext with the private key
-	plaintext, err := rsa.DecryptPKCS1v15(nil, privateKey, ciphertext)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
-}
-
-func existsData_V1(db *sql.DB, name string) bool {
-	var exists bool
-	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM public_keys WHERE name = ?)", name).Scan(&exists)
-	if err != nil {
-		log.Println("Error QueryRow database:", err)
-		return false
-	}
-	return exists
 }
 
 func getFromCache(data string, expiration time.Duration) (bool, bool) {
@@ -347,15 +283,27 @@ func cleanupCache(expiration time.Duration) {
 }
 
 func createTables(db *sql.DB) error {
-	// Create table in the database
-	sql := `CREATE TABLE IF NOT EXISTS public_keys (
+
+	// Create tables in the database
+
+	sql1 := `CREATE TABLE IF NOT EXISTS client_keys (
 		"Name" TEXT PRIMARY KEY NOT NULL,
 		"Data" TEXT,
 		"Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
-	_, err := db.Exec(sql)
+	_, err := db.Exec(sql1)
 	if err != nil {
 		return err
 	}
+
+	sql2 := `CREATE TABLE IF NOT EXISTS ips (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	_, err = db.Exec(sql2)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
