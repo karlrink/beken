@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"database/sql"
@@ -17,7 +16,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🍁-2023-09-12"
+var version = "1.0.0.🍁-2023-09-13"
 
 type CacheEntry struct {
 	Exists     bool
@@ -113,12 +112,6 @@ func main() {
 
 	log.Println("UDP server listening on " + address)
 
-	// Define a cache expiration duration (e.g., 5 minutes)
-	expirationDuration := 5 * time.Minute
-
-	// Start a Goroutine to periodically clean up expired entries from the cache
-	go cleanupCache(expirationDuration)
-
 	for {
 		// Read data from the connection
 		n, addr, err := conn.ReadFromUDP(buffer)
@@ -132,44 +125,40 @@ func main() {
 		// Process each packet in a Goroutine
 		go func(data string, clientAddr *net.UDPAddr) {
 
-			// Convert clientAddr to a string
-			//clientAddrStr := clientAddr.String()
-
-			//receivedData := "x xxxxxxx"
-			//str := strings.Split(data, " ")
-			//field1 := str[0]
-			//field2 := str[1]
-
-			/*
-				// Check the cache first
-				exists, cached := getFromCache(data, expirationDuration)
-				if !cached {
-					exists = existsData(db, data)
-					addToCache(data, exists, expirationDuration)
-				}
-			*/
-
-			exists := existsDecrypts(db, data)
+			exists := existsAndDecrypts(db, data)
 
 			if exists {
 
 				fmt.Println("Data exists and decrypts:", data)
 
+				str := strings.Split(data, " ")
+				field1 := str[0] //name
+				//field2 := str[1] //cypher
+				//field3 := str[2] //nonce
+
 				// add clientAddr to db
+				// Convert clientAddr to a string
+				clientAddrStr := clientAddr.String()
+
+				// Remove the port from the IP address
+				host, _, err := net.SplitHostPort(clientAddrStr) // works for both IPv4 and IPv6 addresses
+				if err != nil {
+					log.Printf("Failed to split host and port: %v\n", err)
+				}
 
 				// Save the IP to the database
-				_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", clientAddr.String(), "")
+				_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
 				if err != nil {
 					log.Printf("Failed to save IP to database: %v\n", err)
 				} else {
-					log.Printf("Isert IP %s \n", clientAddr.String())
+					log.Printf("Isert IP %s \n", host)
 				}
 
 				// Send a response back to the client
 				response := "your udp received"
-				_, err := conn.WriteToUDP([]byte(response), clientAddr)
-				if err != nil {
-					log.Println("Error sending response to client:", err)
+				_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+				if err_response != nil {
+					log.Println("Error sending response to client:", err_response)
 				}
 				fmt.Println("Sent response %s", clientAddr.String())
 
@@ -181,20 +170,17 @@ func main() {
 	}
 }
 
-var cacheMutex sync.RWMutex
-var cache = make(map[string]CacheEntry)
-
-func existsDecrypts(db *sql.DB, dataStr string) bool {
+func existsAndDecrypts(db *sql.DB, dataStr string) bool {
 
 	var exists bool
-	var data string
+	var key string
 
 	str := strings.Split(dataStr, " ")
 	field1 := str[0] //name
 	field2 := str[1] //cypher
 	field3 := str[2] //nonce
 
-	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM client_keys WHERE Name = ?), Data FROM client_keys WHERE Name = ?", field1, field1).Scan(&exists, &data)
+	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM client_keys WHERE Name = ?), Data FROM client_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 	if err != nil {
 		log.Println("Error QueryRow database:", err)
 		return false
@@ -205,9 +191,9 @@ func existsDecrypts(db *sql.DB, dataStr string) bool {
 	//fmt.Println("base64: " + field3)
 
 	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
-	key := []byte(data) // 32 bytes for AES-256
+	//key := []byte(data) // 32 bytes for AES-256
 
-	decrypted, err := decrypt(field2, field3, key)
+	decrypted, err := decrypt(field2, field3, []byte(key))
 	if err != nil {
 		log.Println("Error decrypt:", err)
 		return false
@@ -245,41 +231,6 @@ func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, e
 	}
 
 	return string(plaintext), nil
-}
-
-func getFromCache(data string, expiration time.Duration) (bool, bool) {
-	cacheMutex.RLock()
-	entry, cached := cache[data]
-	cacheMutex.RUnlock()
-
-	if cached && time.Now().Before(entry.Expiration) {
-		return entry.Exists, true
-	}
-
-	return false, false
-}
-
-func addToCache(data string, exists bool, expiration time.Duration) {
-	cacheMutex.Lock()
-	cache[data] = CacheEntry{
-		Exists:     exists,
-		Expiration: time.Now().Add(expiration),
-	}
-	cacheMutex.Unlock()
-}
-
-func cleanupCache(expiration time.Duration) {
-	for {
-		time.Sleep(expiration)
-
-		cacheMutex.Lock()
-		for data, entry := range cache {
-			if time.Now().After(entry.Expiration) {
-				delete(cache, data)
-			}
-		}
-		cacheMutex.Unlock()
-	}
 }
 
 func createTables(db *sql.DB) error {
