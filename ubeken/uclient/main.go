@@ -34,9 +34,6 @@ func main() {
 		return
 	}
 
-	// Convert the file contents to a string
-	//keyStr := string(keyBytes)
-
 	// Convert the file contents to a string and remove leading/trailing white spaces
 	keyStr := strings.TrimSpace(string(keyBytes))
 
@@ -59,19 +56,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	//data := []byte("my udpXdata")
-	//dataStr := "x " + ciphertextStr
-
-	//plaintext := "Beken " + time.Now().Format("2006-01-02 15:04:05")
-
-	//plaintext := "Beken " + fileContentsStr + " " + time.Now().Format("2006-01-02 15:04:05")
-	//plaintext := fileContentsStr
-
 	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
 	key := []byte(keyStr) // 32 bytes for AES-256
-	//name := "x_user"
-
-	//base64cipher, base64Nonce := encrypt(plaintext, key)
 
 	base64cipher, base64Nonce := encrypt(keyStr, key)
 
@@ -113,7 +99,7 @@ func main() {
 			return
 		}
 		fmt.Println("Error receiving UDP response:", err)
-		fmt.Println("Bummer. dycrypt packet lost.")
+		//fmt.Println("Bummer. dycrypt packet lost.")
 		return
 	}
 
