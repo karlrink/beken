@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2EC67E282AB4F3D300D4D50F /* CryptoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC67E272AB4F3D300D4D50F /* CryptoManager.swift */; };
 		2EF708BA2AB25EB200102498 /* bekenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF708B92AB25EB200102498 /* bekenApp.swift */; };
 		2EF708BC2AB25EB200102498 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF708BB2AB25EB200102498 /* ContentView.swift */; };
 		2EF708BE2AB25EB300102498 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2EF708BD2AB25EB300102498 /* Assets.xcassets */; };
@@ -14,6 +15,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2EC67E272AB4F3D300D4D50F /* CryptoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoManager.swift; sourceTree = "<group>"; };
 		2EF708B62AB25EB200102498 /* beken.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = beken.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EF708B92AB25EB200102498 /* bekenApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = bekenApp.swift; sourceTree = "<group>"; };
 		2EF708BB2AB25EB200102498 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -55,6 +57,7 @@
 				2EF708BB2AB25EB200102498 /* ContentView.swift */,
 				2EF708BD2AB25EB300102498 /* Assets.xcassets */,
 				2EF708BF2AB25EB300102498 /* Preview Content */,
+				2EC67E272AB4F3D300D4D50F /* CryptoManager.swift */,
 			);
 			path = beken;
 			sourceTree = "<group>";
@@ -137,6 +140,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2EC67E282AB4F3D300D4D50F /* CryptoManager.swift in Sources */,
 				2EF708BC2AB25EB200102498 /* ContentView.swift in Sources */,
 				2EF708BA2AB25EB200102498 /* bekenApp.swift in Sources */,
 			);

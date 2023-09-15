@@ -8,9 +8,16 @@
 import SwiftUI
 import Network
 
+import CryptoKit
+import Foundation
+
+
 struct ContentView: View {
+    
     @AppStorage("serverAddress") private var serverAddress: String = ""
     @AppStorage("serverPort") private var serverPort: String = ""
+    @AppStorage("nameStr") private var nameStr: String = ""
+    @AppStorage("keyStr") private var keyStr: String = ""
 
     var body: some View {
         NavigationView {
@@ -27,8 +34,18 @@ struct ContentView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.numberPad)
                     .padding()
+                
+                TextField("Name", text: $nameStr)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
 
-                NavigationLink(destination: ButtonView(serverAddress: $serverAddress, serverPort: $serverPort)) {
+                TextField("Key", text: $keyStr)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .keyboardType(.numberPad)
+                    .padding()
+
+
+                NavigationLink(destination: ButtonView(serverAddress: $serverAddress,serverPort: $serverPort, nameStr: $nameStr, keyStr: $keyStr)) {
                     Text("Continue")
                         .font(.headline)
                         .foregroundColor(.white)
@@ -39,12 +56,18 @@ struct ContentView: View {
             }
         }
     }
+    
 }
 
 struct ButtonView: View {
+    
     @State var connection: NWConnection?
+    
     @Binding var serverAddress: String
     @Binding var serverPort: String
+    @Binding var nameStr: String
+    @Binding var keyStr: String
+    
     @State private var isDataSent: Bool = false
     @State private var outputMessage: String = ""
 
@@ -97,19 +120,29 @@ struct ButtonView: View {
 
     func sendUDPData() {
         self.outputMessage = "fail"
-        //let message = "Hello, UDP Server!"
-        let message = "x_user l1QNRjde7Wh6D1Ubz7eTKt8LhKqMTj4GT2r8nVz0L3mNE0AuORVHKtQ= Ppg5Flv0SXudV2TX"
-        if let data = message.data(using: .utf8) {
-            send(data: data)
-        } else {
-            print("Failed to convert message to data")
+        
+        do {
+            let encryptedMessage = try CryptoManager.encryptMessage(message: keyStr, keyStr: keyStr)
+            let message = "\(nameStr) \(encryptedMessage)"
+            
+            print(message)
+            
+            if let data = message.data(using: .utf8) {
+                send(data: data)
+            } else {
+                print("Failed to convert message to data")
+            }
+        } catch {
+            print("Encryption error: \(error)")
         }
     }
+
 
     func send(data: Data) {
         connection?.stateUpdateHandler = { state in
             switch state {
             case .ready:
+                // data send
                 connection?.send(content: data, completion: .contentProcessed { error in
                     if let error = error {
                         print("Failed to send data: \(error)")
@@ -121,8 +154,11 @@ struct ButtonView: View {
                         isDataSent = true
                     }
                 })
-
+                
+                // data sent, now receive recieve
+                
                 connection?.receiveMessage { data, _, _, error in
+                    
                     if let error = error {
                         print("Failed to receive data: \(error)")
                         DispatchQueue.main.async {
@@ -130,12 +166,26 @@ struct ButtonView: View {
                         }
                         return
                     }
+                    
                     if let data = data, let message = String(data: data, encoding: .utf8) {
-                        DispatchQueue.main.async {
-                            self.outputMessage = message
+                        do {
+                            let decryptedMessage = try CryptoManager.decryptMessage(encryptedMessage: message, keyStr: keyStr)
+                            // Use the decrypted message as needed
+                            print("Decrypted message: \(decryptedMessage)")
+
+                            DispatchQueue.main.async {
+                                self.outputMessage = decryptedMessage
+                            }
+                        } catch {
+                            print("Decryption error: \(error)")
+                            DispatchQueue.main.async {
+                                self.outputMessage = "Decryption error: \(error.localizedDescription)"
+                            }
                         }
                     }
+                    
                 }
+                
             case .failed(let error):
                 if (error as NSError).code == 61 {
                     DispatchQueue.main.async {
@@ -155,5 +205,8 @@ struct ButtonView: View {
         connection?.start(queue: .global())
     }
     
-    
+ 
+
+
+
 }
