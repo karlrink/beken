@@ -121,12 +121,21 @@ struct ButtonView: View {
     func sendUDPData() {
         self.outputMessage = "fail"
         
+        let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
+        print(trimmedKeyStr)
+      
+        
         do {
-            let encryptedMessage = try CryptoManager.encryptMessage(message: keyStr, keyStr: keyStr)
+            //let encryptedMessage = try CryptoManager.encryptMessage(message: keyStr, keyStr: keyStr)
+            let encryptedMessage = try CryptoManager.encryptMessage(message: trimmedKeyStr, keyStr: trimmedKeyStr)
             let message = "\(nameStr) \(encryptedMessage)"
             
-            print(message)
+            //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
             
+            print(message)
+            //print(messageTrim)
+            
+            //if let data = messageTrim.data(using: .utf8) {
             if let data = message.data(using: .utf8) {
                 send(data: data)
             } else {
@@ -168,8 +177,12 @@ struct ButtonView: View {
                     }
                     
                     if let data = data, let message = String(data: data, encoding: .utf8) {
+                        let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
+                        print(trimmedKeyStr)
                         do {
-                            let decryptedMessage = try CryptoManager.decryptMessage(encryptedMessage: message, keyStr: keyStr)
+                            //let keyStr = /* Your base64-encoded key string */
+                            //let decryptedMessage = try CryptoManager.decryptMessage(encryptedMessage: message, keyStr: keyStr)
+                            let decryptedMessage = try CryptoManager.decryptMessage(encryptedMessage: message, keyStr: trimmedKeyStr)
                             // Use the decrypted message as needed
                             print("Decrypted message: \(decryptedMessage)")
 
