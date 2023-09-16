@@ -211,7 +211,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	field1 := str[0] //name
 	field2 := str[1] //cypher
 	field3 := str[2] //nonce
-	//field4 := str[3] //tag
+	field4 := str[3] //tag
 
 	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM ubeken_keys WHERE Name = ?), Data FROM ubeken_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 	if err != nil {
@@ -227,7 +227,9 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	//key := []byte(data) // 32 bytes for AES-256
 
 	//decrypted, err := decrypt(field2, field3, field4, []byte(key))
-	decrypted, err := decrypt(field2, field3, []byte(key))
+	//decrypted, err := decrypt(field2, field3, []byte(key))
+
+	decrypted, err := decrypt(field2, field3, field4, []byte(key))
 	if err != nil {
 		log.Println("Error decrypt:", err)
 		return false, "", ""
@@ -237,38 +239,8 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	return exists, key, decrypted
 }
 
-func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, error) {
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
-	if err != nil {
-		return "", err
-	}
-
-	decodedNonce, err := base64.StdEncoding.DecodeString(base64Nonce)
-	if err != nil {
-		return "", err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, nil)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
-}
-
 // can't get golang to work w/ aes tag, Error decrypt: cipher: message authentication failed
-func decryptAEStag(base64Ciphertext string, base64Nonce string, base64Tag string, key []byte) (string, error) {
+func decrypt(base64Ciphertext string, base64Nonce string, base64Tag string, key []byte) (string, error) {
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -296,6 +268,36 @@ func decryptAEStag(base64Ciphertext string, base64Nonce string, base64Tag string
 	}
 
 	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, decodedTag)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
+}
+
+func decrypt_V1(base64Ciphertext string, base64Nonce string, key []byte) (string, error) {
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
+	if err != nil {
+		return "", err
+	}
+
+	decodedNonce, err := base64.StdEncoding.DecodeString(base64Nonce)
+	if err != nil {
+		return "", err
+	}
+
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, nil)
 	if err != nil {
 		return "", err
 	}

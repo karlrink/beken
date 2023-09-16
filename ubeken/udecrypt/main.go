@@ -6,53 +6,71 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func main() {
-	if len(os.Args) != 4 {
-		fmt.Println("Usage: main <base64Ciphertext> <base64Nonce> <key>")
+
+	// Get the encrypted message from the SwiftUI code.
+	//encryptedMessage := "base64Cipher base64Nonce base64Tag" // Include the tag in the string
+	// Split the encrypted message into the three components: ciphertext, nonce, and tag.
+	//components := encryptedMessage.Split(" ")
+	//ciphertext := components[0]
+	//nonce := components[1]
+	//tag := components[2]
+
+	if len(os.Args) != 5 {
+		fmt.Println("Usage: main <base64Ciphertext> <base64Nonce> <base64Tag> <key>")
 		os.Exit(1)
 	}
 
-	base64Ciphertext := os.Args[1]
-	base64Nonce := os.Args[2]
-	key := []byte(os.Args[3])
+	ciphertext := strings.Replace(strings.TrimSpace(os.Args[1]), "\n", "", -1)
+	nonce := strings.Replace(strings.TrimSpace(os.Args[2]), "\n", "", -1)
+	tag := strings.Replace(strings.TrimSpace(os.Args[3]), "\n", "", -1)
 
-	plaintext, err := decrypt(base64Ciphertext, base64Nonce, key)
+	key := []byte(strings.Replace(strings.TrimSpace(os.Args[4]), "\n", "", -1))
+
+	// Decode the ciphertext, nonce, and tag.
+	decodedCiphertext, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		os.Exit(2)
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	fmt.Println("Decrypted plaintext:", plaintext)
-}
-
-func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, error) {
-
-	block, err := aes.NewCipher(key)
+	decodedNonce, err := base64.StdEncoding.DecodeString(nonce)
 	if err != nil {
-		return "", err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
+	decodedTag, err := base64.StdEncoding.DecodeString(tag)
 	if err != nil {
-		return "", err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	decodedNonce, err := base64.StdEncoding.DecodeString(base64Nonce)
+	// Create a new AES cipher.
+	//block, err := aes.NewCipher([]byte("secret-key"))
+	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
-		return "", err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
+	// Create a new GCM authenticated encryption algorithm.
 	aead, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, nil)
+	// Decrypt the data.
+	decryptedPlaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, decodedTag)
 	if err != nil {
-		return "", err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	return string(plaintext), nil
+	// Print the decrypted plaintext.
+	fmt.Println(string(decryptedPlaintext))
 }
