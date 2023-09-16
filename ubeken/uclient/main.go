@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var version = "1.0.0.🍁-2023-09-15 1"
+var version = "1.0.0.🍁-2023-09-15 2"
 
 func main() {
 	if len(os.Args) < 4 {
