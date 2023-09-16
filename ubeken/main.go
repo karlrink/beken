@@ -18,7 +18,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🍁-2023-09-15"
+var version = "1.0.0.🍁-2023-09-15 1"
 
 func usage() {
 
@@ -151,7 +151,7 @@ func main() {
 
 				// encrypt
 
-				base64cipher, base64Nonce, err := encrypt(new_key, []byte(key))
+				base64cipher, base64Nonce, base64Tag, err := encrypt(new_key, []byte(key))
 				if err != nil {
 					log.Printf("Failed encrypt: %v\n", err)
 				}
@@ -160,7 +160,7 @@ func main() {
 				// Send a response back to the client
 				//response := "your udp received"
 
-				response := field1 + " " + base64cipher + " " + base64Nonce
+				response := field1 + " " + base64cipher + " " + base64Nonce + " " + base64Tag
 
 				_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 				if err_response != nil {
@@ -211,6 +211,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	field1 := str[0] //name
 	field2 := str[1] //cypher
 	field3 := str[2] //nonce
+	field4 := str[3] //tag
 
 	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM ubeken_keys WHERE Name = ?), Data FROM ubeken_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 	if err != nil {
@@ -225,7 +226,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
 	//key := []byte(data) // 32 bytes for AES-256
 
-	decrypted, err := decrypt(field2, field3, []byte(key))
+	decrypted, err := decrypt(field2, field3, field4, []byte(key))
 	if err != nil {
 		log.Println("Error decrypt:", err)
 		return false, "", ""
@@ -235,7 +236,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	return exists, key, decrypted
 }
 
-func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, error) {
+func decrypt(base64Ciphertext string, base64Nonce string, base64Tag string, key []byte) (string, error) {
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -252,12 +253,17 @@ func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, e
 		return "", err
 	}
 
+	decodedTag, err := base64.StdEncoding.DecodeString(base64Tag)
+	if err != nil {
+		return "", err
+	}
+
 	aead, err := cipher.NewGCM(block)
 	if err != nil {
 		return "", err
 	}
 
-	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, nil)
+	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, decodedTag)
 	if err != nil {
 		return "", err
 	}
@@ -265,29 +271,30 @@ func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, e
 	return string(plaintext), nil
 }
 
-func encrypt(plaintext string, key []byte) (string, string, error) {
+func encrypt(plaintext string, key []byte) (string, string, string, error) {
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	nonce := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	aead, err := cipher.NewGCM(block)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	ciphertext := aead.Seal(nil, nonce, []byte(plaintext), nil)
 
 	base64Cipher := base64.StdEncoding.EncodeToString(ciphertext)
 	base64Nonce := base64.StdEncoding.EncodeToString(nonce)
+	base64Tag := base64.StdEncoding.EncodeToString(aead.Seal(nil, nonce, nil, ciphertext))
 
-	return base64Cipher, base64Nonce, nil
+	return base64Cipher, base64Nonce, base64Tag, nil
 }
 
 func createTables(db *sql.DB) error {

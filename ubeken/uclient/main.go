@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-var version = "1.0.0.🍁-2023-09-15"
+var version = "1.0.0.🍁-2023-09-15 1"
 
 func main() {
 	if len(os.Args) < 4 {
@@ -59,9 +59,13 @@ func main() {
 	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
 	key := []byte(keyStr) // 32 bytes for AES-256
 
-	base64cipher, base64Nonce := encrypt(keyStr, key)
+	base64cipher, base64Nonce, base64Tag, err := encrypt(keyStr, key)
+	if err != nil {
+		fmt.Println("Error encrypt:", err)
+		return
+	}
 
-	dataStr := name + " " + base64cipher + " " + base64Nonce
+	dataStr := name + " " + base64cipher + " " + base64Nonce + " " + base64Tag
 
 	fmt.Println("dataStr: " + dataStr)
 
@@ -112,9 +116,10 @@ func main() {
 	//field1 := str[0] //name
 	field2 := str[1] //cypher
 	field3 := str[2] //nonce
+	//field4 := str[3] //tag
 
-	//decrypted, err := decrypt(field2, field3, []byte(key))
-	decrypted, err := decrypt(field2, field3, key)
+	//decrypted, err := decrypt(field2, field3, field4, key)
+	decrypted, err := decrypt(field2, field3, []byte(key))
 	if err != nil {
 		log.Println("Error decrypt:", err)
 		return
@@ -143,37 +148,41 @@ func main() {
 
 }
 
-func encrypt(plaintext string, key []byte) (string, string) {
+func encrypt(plaintext string, key []byte) (string, string, string, error) {
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		panic(err.Error())
+		return "", "", "", err
 	}
 
 	nonce := make([]byte, 12)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		panic(err.Error())
+		return "", "", "", err
 	}
 
 	aead, err := cipher.NewGCM(block)
 	if err != nil {
-		panic(err.Error())
+		return "", "", "", err
 	}
 
 	ciphertext := aead.Seal(nil, nonce, []byte(plaintext), nil)
+	tag := aead.Seal(nil, nonce, nil, ciphertext)
 
 	base64Cipher := base64.StdEncoding.EncodeToString(ciphertext)
 	base64Nonce := base64.StdEncoding.EncodeToString(nonce)
-	return base64Cipher, base64Nonce
+	base64Tag := base64.StdEncoding.EncodeToString(tag)
+
+	return base64Cipher, base64Nonce, base64Tag, nil
 }
 
-func decrypt(base64Ciphertext string, base64Nonce string, key []byte) (string, error) {
+func decrypt(base64Cipher string, base64Nonce string, key []byte) (string, error) {
 
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
 
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
+	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Cipher)
 	if err != nil {
 		return "", err
 	}
