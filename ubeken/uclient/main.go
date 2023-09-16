@@ -1,10 +1,9 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -13,6 +12,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/chacha20poly1305"
 )
 
 var version = "1.0.0.🍁-2023-09-15 2"
@@ -59,13 +60,18 @@ func main() {
 	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
 	key := []byte(keyStr) // 32 bytes for AES-256
 
-	base64cipher, base64Nonce, base64Tag, err := encrypt(keyStr, key)
+	hexCipher, hexNonce, err := encrypt(keyStr, key)
 	if err != nil {
 		fmt.Println("Error encrypt:", err)
 		return
 	}
 
-	dataStr := name + " " + base64cipher + " " + base64Nonce + " " + base64Tag
+	//dataStr := name + " " + string(hexCipher) + " " + string(hexNonce)
+
+	base64Cipher := base64.StdEncoding.EncodeToString(hexCipher)
+	base64Nonce := base64.StdEncoding.EncodeToString(hexNonce)
+
+	dataStr := name + " " + base64Cipher + " " + base64Nonce
 
 	fmt.Println("dataStr: " + dataStr)
 
@@ -118,14 +124,34 @@ func main() {
 	field3 := str[2] //nonce
 	//field4 := str[3] //tag
 
-	//decrypted, err := decrypt(field2, field3, field4, key)
-	decrypted, err := decrypt(field2, field3, []byte(key))
+	// Decode base64 ciphertext, nonce
+	decodedCiphertext, err := base64.StdEncoding.DecodeString(field2)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	decodedNonce, err := base64.StdEncoding.DecodeString(field3)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Convert decodedCiphertext and decodedNonce to strings
+	//ciphertextStr := string(decodedCiphertext)
+	//nonceStr := string(decodedNonce)
+
+	// Convert decodedCiphertext and decodedNonce to hexadecimal strings
+	ciphertextHex := hex.EncodeToString(decodedCiphertext)
+	nonceHex := hex.EncodeToString(decodedNonce)
+
+	decrypted, err := decrypt(ciphertextHex, nonceHex, []byte(key))
 	if err != nil {
 		log.Println("Error decrypt:", err)
 		return
 	}
 
-	fmt.Println("Decrypted:  ", decrypted)
+	//fmt.Println("Decrypted:  ", decrypted)
 
 	// write new key
 
@@ -148,61 +174,80 @@ func main() {
 
 }
 
-func encrypt(plaintext string, key []byte) (string, string, string, error) {
+func encrypt(plaintext string, key []byte) ([]byte, []byte, error) {
 
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	nonce := make([]byte, 12)
+	// Generate a random nonce. The nonce must be unique for each encryption operation.
+	// It should never be reused with the same key.
+	nonce := make([]byte, chacha20poly1305.NonceSize)
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", "", "", err
+		return nil, nil, err
 	}
 
-	aead, err := cipher.NewGCM(block)
+	// Create a new ChaCha20-Poly1305 AEAD cipher instance using the secret key.
+	aead, err := chacha20poly1305.New(key)
 	if err != nil {
-		return "", "", "", err
+		return nil, nil, err
 	}
 
-	ciphertext := aead.Seal(nil, nonce, []byte(plaintext), nil)
-	tag := aead.Seal(nil, nonce, nil, ciphertext)
+	// Convert the plaintext string to []byte.
+	plaintextBytes := []byte(plaintext)
 
-	base64Cipher := base64.StdEncoding.EncodeToString(ciphertext)
-	base64Nonce := base64.StdEncoding.EncodeToString(nonce)
-	base64Tag := base64.StdEncoding.EncodeToString(tag)
+	// Encrypt the plaintext using ChaCha20-Poly1305.
+	ciphertext := aead.Seal(nil, nonce, plaintextBytes, nil)
 
-	return base64Cipher, base64Nonce, base64Tag, nil
+	// Return the ciphertext and nonce as []byte.
+	return ciphertext, nonce, nil
 }
 
-func decrypt(base64Cipher string, base64Nonce string, key []byte) (string, error) {
+func decrypt(ciphertextHex string, nonceHex string, key []byte) (string, error) {
 
-	block, err := aes.NewCipher(key)
+	// Parse the hexadecimal strings for ciphertext and nonce.
+	ciphertext, err := hex.DecodeString(ciphertextHex)
 	if err != nil {
+		//log.Fatalf("Failed to decode ciphertext: %v", err)
+		return "", err
+	}
+	if len(ciphertext) == 0 {
+		//log.Fatal("Ciphertext cannot be empty")
 		return "", err
 	}
 
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Cipher)
+	nonce, err := hex.DecodeString(nonceHex)
 	if err != nil {
+		//log.Fatalf("Failed to decode nonce: %v", err)
+		return "", err
+	}
+	if len(nonce) != chacha20poly1305.NonceSize {
+		//log.Fatalf("Nonce must be exactly 12 bytes long")
 		return "", err
 	}
 
-	decodedNonce, err := base64.StdEncoding.DecodeString(base64Nonce)
+	// Print the nonce and ciphertext as hexadecimal strings.
+	fmt.Printf("Nonce: %x\n", nonce)
+	fmt.Printf("Ciphertext: %x\n", ciphertext)
+
+	// Define your secret key. In practice, you should generate a strong secret key.
+	// Do not use this key for anything sensitive.
+	//secretKey := []byte("0123456789abcdef0123456789abcdef")
+
+	// Create a new ChaCha20-Poly1305 AEAD cipher instance using the secret key.
+	aead, err := chacha20poly1305.New(key)
 	if err != nil {
+		//log.Fatalf("Failed to create AEAD cipher: %v", err)
 		return "", err
 	}
 
-	aead, err := cipher.NewGCM(block)
+	// Decrypt the ciphertext (for demonstration purposes).
+	decrypted, err := aead.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
+		//log.Fatalf("Decryption error: %v", err)
 		return "", err
 	}
 
-	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, nil)
-	if err != nil {
-		return "", err
-	}
+	// Print the decrypted plaintext.
+	fmt.Printf("Decrypted: %s\n", decrypted)
 
-	return string(plaintext), nil
+	return string(decrypted), nil
 }
 
 /*

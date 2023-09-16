@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -16,6 +14,7 @@ import (
 	"database/sql"
 
 	_ "github.com/mattn/go-sqlite3"
+	"golang.org/x/crypto/chacha20poly1305"
 )
 
 var version = "1.0.0.🍁-2023-09-15 2"
@@ -151,7 +150,7 @@ func main() {
 
 				// encrypt
 
-				base64cipher, base64Nonce, base64Tag, err := encrypt(new_key, []byte(key))
+				hexCipher, hexNonce, err := encrypt(new_key, []byte(key))
 				if err != nil {
 					log.Printf("Failed encrypt: %v\n", err)
 				}
@@ -160,7 +159,13 @@ func main() {
 				// Send a response back to the client
 				//response := "your udp received"
 
-				response := field1 + " " + base64cipher + " " + base64Nonce + " " + base64Tag
+				//response := field1 + " " + hexCipher + " " + hexNonce
+				//response := field1 + " " + string(hexCipher) + " " + string(hexNonce)
+
+				base64Cipher := base64.StdEncoding.EncodeToString(hexCipher)
+				base64Nonce := base64.StdEncoding.EncodeToString(hexNonce)
+
+				response := field1 + " " + base64Cipher + " " + base64Nonce
 
 				_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 				if err_response != nil {
@@ -211,11 +216,28 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	field1 := str[0] //name
 	field2 := str[1] //cypher
 	field3 := str[2] //nonce
-	field4 := str[3] //tag
+	//field4 := str[3] //tag
 
-	err := db.QueryRow("SELECT EXISTS (SELECT 1 FROM ubeken_keys WHERE Name = ?), Data FROM ubeken_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+	// Decode base64 ciphertext, nonce
+	decodedCiphertext, err := base64.StdEncoding.DecodeString(field2)
 	if err != nil {
-		log.Println("Error QueryRow database:", err)
+		log.Println(err)
+		return false, "", ""
+	}
+
+	decodedNonce, err := base64.StdEncoding.DecodeString(field3)
+	if err != nil {
+		log.Println(err)
+		return false, "", ""
+	}
+
+	// Convert decodedCiphertext and decodedNonce to hexadecimal strings
+	ciphertextHex := hex.EncodeToString(decodedCiphertext)
+	nonceHex := hex.EncodeToString(decodedNonce)
+
+	err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM ubeken_keys WHERE Name = ?), Data FROM ubeken_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+	if err_query != nil {
+		log.Println("Error QueryRow database:", err_query)
 		return false, "", ""
 	}
 
@@ -229,7 +251,8 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	//decrypted, err := decrypt(field2, field3, field4, []byte(key))
 	//decrypted, err := decrypt(field2, field3, []byte(key))
 
-	decrypted, err := decrypt(field2, field3, field4, []byte(key))
+	//decrypted, err := decrypt(field2, field3, field4, []byte(key))
+	decrypted, err := decrypt(ciphertextHex, nonceHex, []byte(key))
 	if err != nil {
 		log.Println("Error decrypt:", err)
 		return false, "", ""
@@ -237,98 +260,6 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	//fmt.Println("Decrypted:  ", decrypted)
 
 	return exists, key, decrypted
-}
-
-// can't get golang to work w/ aes tag, Error decrypt: cipher: message authentication failed
-func decrypt(base64Ciphertext string, base64Nonce string, base64Tag string, key []byte) (string, error) {
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
-	if err != nil {
-		return "", err
-	}
-
-	decodedNonce, err := base64.StdEncoding.DecodeString(base64Nonce)
-	if err != nil {
-		return "", err
-	}
-
-	decodedTag, err := base64.StdEncoding.DecodeString(base64Tag)
-	if err != nil {
-		return "", err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, decodedTag)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
-}
-
-func decrypt_V1(base64Ciphertext string, base64Nonce string, key []byte) (string, error) {
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(base64Ciphertext)
-	if err != nil {
-		return "", err
-	}
-
-	decodedNonce, err := base64.StdEncoding.DecodeString(base64Nonce)
-	if err != nil {
-		return "", err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-
-	plaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, nil)
-	if err != nil {
-		return "", err
-	}
-
-	return string(plaintext), nil
-}
-
-func encrypt(plaintext string, key []byte) (string, string, string, error) {
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	nonce := make([]byte, 12)
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", "", "", err
-	}
-
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", "", "", err
-	}
-
-	ciphertext := aead.Seal(nil, nonce, []byte(plaintext), nil)
-
-	base64Cipher := base64.StdEncoding.EncodeToString(ciphertext)
-	base64Nonce := base64.StdEncoding.EncodeToString(nonce)
-	base64Tag := base64.StdEncoding.EncodeToString(aead.Seal(nil, nonce, nil, ciphertext))
-
-	return base64Cipher, base64Nonce, base64Tag, nil
 }
 
 func createTables(db *sql.DB) error {
@@ -396,6 +327,87 @@ func randomHexString(length int) (string, error) {
 
 
 
+
+
+ */
+
+func encrypt(plaintext string, key []byte) ([]byte, []byte, error) {
+
+	// Generate a random nonce. The nonce must be unique for each encryption operation.
+	// It should never be reused with the same key.
+	nonce := make([]byte, chacha20poly1305.NonceSize)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, err
+	}
+
+	// Create a new ChaCha20-Poly1305 AEAD cipher instance using the secret key.
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Convert the plaintext string to []byte.
+	plaintextBytes := []byte(plaintext)
+
+	// Encrypt the plaintext using ChaCha20-Poly1305.
+	ciphertext := aead.Seal(nil, nonce, plaintextBytes, nil)
+
+	// Return the ciphertext and nonce as []byte.
+	return ciphertext, nonce, nil
+}
+
+func decrypt(ciphertextHex string, nonceHex string, key []byte) (string, error) {
+
+	// Parse the hexadecimal strings for ciphertext and nonce.
+	ciphertext, err := hex.DecodeString(ciphertextHex)
+	if err != nil {
+		//log.Fatalf("Failed to decode ciphertext: %v", err)
+		return "", err
+	}
+	if len(ciphertext) == 0 {
+		//log.Fatal("Ciphertext cannot be empty")
+		return "", err
+	}
+
+	nonce, err := hex.DecodeString(nonceHex)
+	if err != nil {
+		//log.Fatalf("Failed to decode nonce: %v", err)
+		return "", err
+	}
+	if len(nonce) != chacha20poly1305.NonceSize {
+		//log.Fatalf("Nonce must be exactly 12 bytes long")
+		return "", err
+	}
+
+	// Print the nonce and ciphertext as hexadecimal strings.
+	fmt.Printf("Nonce: %x\n", nonce)
+	fmt.Printf("Ciphertext: %x\n", ciphertext)
+
+	// Define your secret key. In practice, you should generate a strong secret key.
+	// Do not use this key for anything sensitive.
+	//secretKey := []byte("0123456789abcdef0123456789abcdef")
+
+	// Create a new ChaCha20-Poly1305 AEAD cipher instance using the secret key.
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		//log.Fatalf("Failed to create AEAD cipher: %v", err)
+		return "", err
+	}
+
+	// Decrypt the ciphertext (for demonstration purposes).
+	decrypted, err := aead.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		//log.Fatalf("Decryption error: %v", err)
+		return "", err
+	}
+
+	// Print the decrypted plaintext.
+	fmt.Printf("Decrypted: %s\n", decrypted)
+
+	return string(decrypted), nil
+}
+
+/*
 
 
  */
