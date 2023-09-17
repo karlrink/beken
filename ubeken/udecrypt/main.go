@@ -1,76 +1,60 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 	"strings"
+
+	"golang.org/x/crypto/chacha20poly1305"
+	//"github.com/aead/chacha20poly1305"
 )
 
 func main() {
 
-	// Get the encrypted message from the SwiftUI code.
-	//encryptedMessage := "base64Cipher base64Nonce base64Tag" // Include the tag in the string
-	// Split the encrypted message into the three components: ciphertext, nonce, and tag.
-	//components := encryptedMessage.Split(" ")
-	//ciphertext := components[0]
-	//nonce := components[1]
-	//tag := components[2]
-
-	if len(os.Args) != 5 {
-		fmt.Println("Usage: main <base64Ciphertext> <base64Nonce> <base64Tag> <key>")
+	if len(os.Args) != 4 {
+		fmt.Println("Usage: main <base64Ciphertext> <base64Nonce> <key>")
 		os.Exit(1)
 	}
 
-	ciphertext := strings.Replace(strings.TrimSpace(os.Args[1]), "\n", "", -1)
-	nonce := strings.Replace(strings.TrimSpace(os.Args[2]), "\n", "", -1)
-	tag := strings.Replace(strings.TrimSpace(os.Args[3]), "\n", "", -1)
+	// Base64-encoded ciphertext and nonce received from Swift
+	//swiftCipherText := "YOUR_BASE64_CIPHER_TEXT"
+	//swiftNonce := "YOUR_BASE64_NONCE"
+	swiftCipherText := os.Args[1]
+	swiftNonce := os.Args[2]
+	//keyStr := os.Args[3]
 
-	key := []byte(strings.Replace(strings.TrimSpace(os.Args[4]), "\n", "", -1))
+	keyStr := strings.TrimSpace(os.Args[3])
 
-	// Decode the ciphertext, nonce, and tag.
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(ciphertext)
+	// Base64-decode ciphertext and nonce
+	cipherText, err := base64.StdEncoding.DecodeString(swiftCipherText)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalf("Error decoding ciphertext: %v", err)
 	}
 
-	decodedNonce, err := base64.StdEncoding.DecodeString(nonce)
+	nonce, err := base64.StdEncoding.DecodeString(swiftNonce)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalf("Error decoding nonce: %v", err)
 	}
 
-	decodedTag, err := base64.StdEncoding.DecodeString(tag)
+	// Convert the keyStr to the actual encryption key
+	//keyStr := "YOUR_KEY_STR"
+	key := []byte(keyStr) // Make sure it matches the key used in Swift
+
+	// Create a ChaCha20-Poly1305 cipher
+	cipher, err := chacha20poly1305.New(key)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalf("Error creating ChaCha20-Poly1305 cipher: %v", err)
 	}
 
-	// Create a new AES cipher.
-	//block, err := aes.NewCipher([]byte("secret-key"))
-	block, err := aes.NewCipher([]byte(key))
+	// Decrypt the data
+	decryptedData, err := cipher.Open(nil, nonce, cipherText, nil)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalf("Error decrypting data: %v", err)
 	}
 
-	// Create a new GCM authenticated encryption algorithm.
-	aead, err := cipher.NewGCM(block)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	// Decrypt the data.
-	decryptedPlaintext, err := aead.Open(nil, decodedNonce, decodedCiphertext, decodedTag)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-
-	// Print the decrypted plaintext.
-	fmt.Println(string(decryptedPlaintext))
+	// Print the decrypted message
+	decryptedMessage := string(decryptedData)
+	fmt.Println("Decrypted Message:", decryptedMessage)
 }

@@ -117,17 +117,24 @@ struct ButtonView: View {
             port: NWEndpoint.Port(serverPort)!, using: .udp
         )
     }
+    
+  
 
     func sendUDPData() {
         self.outputMessage = "fail"
-        
-        let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
-        print(trimmedKeyStr)
-      
+         
+         let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
+         print(trimmedKeyStr)
+       
+         let nonce = "nonce"
+         
+         let sharedSecretKeyData = Data(bytes: [UInt8](trimmedKeyStr))
+         let cryptoManager = CryptoManager(sharedSecretKey: sharedSecretKeyData)
+
         
         do {
-            //let encryptedMessage = try CryptoManager.encryptMessage(message: keyStr, keyStr: keyStr)
-            let encryptedMessage = try CryptoManager.encryptMessage(message: trimmedKeyStr, keyStr: trimmedKeyStr)
+            
+            let encryptedMessage = try cryptoManager.encrypt(plaintext: trimmedKeyStr)
             let message = "\(nameStr) \(encryptedMessage)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -166,7 +173,12 @@ struct ButtonView: View {
                 
                 // data sent, now receive recieve
                 
+
+
+                
                 connection?.receiveMessage { data, _, _, error in
+                    
+                    
                     
                     if let error = error {
                         print("Failed to receive data: \(error)")
@@ -176,24 +188,21 @@ struct ButtonView: View {
                         return
                     }
                     
-                    if let data = data, let message = String(data: data, encoding: .utf8) {
-                        let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
-                        print(trimmedKeyStr)
-                        do {
-                            //let keyStr = /* Your base64-encoded key string */
-                            //let decryptedMessage = try CryptoManager.decryptMessage(encryptedMessage: message, keyStr: keyStr)
-                            let decryptedMessage = try CryptoManager.decryptMessage(encryptedMessage: message, keyStr: trimmedKeyStr)
-                            // Use the decrypted message as needed
+                    let nonce = "nonce"
+
+                    let cryptoManager = CryptoManager(sharedSecretKey)
+                    _ = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
+                    
+                    if let data = data {
+                        let decryptedMessage = try? cryptoManager.decrypt(ciphertext: data)
+                        if let decryptedMessage = decryptedMessage {
                             print("Decrypted message: \(decryptedMessage)")
 
                             DispatchQueue.main.async {
                                 self.outputMessage = decryptedMessage
                             }
-                        } catch {
-                            print("Decryption error: \(error)")
-                            DispatchQueue.main.async {
-                                self.outputMessage = "Decryption error: \(error.localizedDescription)"
-                            }
+                        } else {
+                            print("Decryption failed")
                         }
                     }
                     

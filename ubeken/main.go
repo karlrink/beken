@@ -216,24 +216,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 	field1 := str[0] //name
 	field2 := str[1] //cypher
 	field3 := str[2] //nonce
-	//field4 := str[3] //tag
-
-	// Decode base64 ciphertext, nonce
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(field2)
-	if err != nil {
-		log.Println(err)
-		return false, "", ""
-	}
-
-	decodedNonce, err := base64.StdEncoding.DecodeString(field3)
-	if err != nil {
-		log.Println(err)
-		return false, "", ""
-	}
-
-	// Convert decodedCiphertext and decodedNonce to hexadecimal strings
-	ciphertextHex := hex.EncodeToString(decodedCiphertext)
-	nonceHex := hex.EncodeToString(decodedNonce)
+	field4 := str[3] //seal
 
 	err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM ubeken_keys WHERE Name = ?), Data FROM ubeken_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 	if err_query != nil {
@@ -241,18 +224,12 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string, string) {
 		return false, "", ""
 	}
 
-	//fmt.Println(data) //key
-	//fmt.Println("base64: " + field2)
-	//fmt.Println("base64: " + field3)
+	fmt.Println("Exists in db: " + field1)
 
 	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
-	//key := []byte(data) // 32 bytes for AES-256
 
-	//decrypted, err := decrypt(field2, field3, field4, []byte(key))
-	//decrypted, err := decrypt(field2, field3, []byte(key))
-
-	//decrypted, err := decrypt(field2, field3, field4, []byte(key))
-	decrypted, err := decrypt(ciphertextHex, nonceHex, []byte(key))
+	//decrypted, err := decrypt(base64Cipher, base64Nonce, base64Seal, []byte(key))
+	decrypted, err := decrypt(field2, field3, field4, key)
 	if err != nil {
 		log.Println("Error decrypt:", err)
 		return false, "", ""
@@ -356,7 +333,7 @@ func encrypt(plaintext string, key []byte) ([]byte, []byte, error) {
 	return ciphertext, nonce, nil
 }
 
-func decrypt(ciphertextHex string, nonceHex string, key []byte) (string, error) {
+func decrypt_V1(ciphertextHex string, nonceHex string, key []byte) (string, error) {
 
 	// Parse the hexadecimal strings for ciphertext and nonce.
 	ciphertext, err := hex.DecodeString(ciphertextHex)
@@ -409,5 +386,63 @@ func decrypt(ciphertextHex string, nonceHex string, key []byte) (string, error) 
 
 /*
 
+
+ */
+
+func decrypt(base64Cipher, base64Nonce, base64Seal string, keyStr string) (string, error) {
+	// Trim whitespace and newlines from the key string
+	keyStr = strings.TrimSpace(keyStr)
+
+	// Debug output
+	fmt.Println("Key:", keyStr)
+	fmt.Println("Cipher:", base64Cipher)
+	fmt.Println("Nonce:", base64Nonce)
+	fmt.Println("Seal:", base64Seal)
+
+	// Decode base64 strings to byte slices
+	ciphertext, err := base64.StdEncoding.DecodeString(base64Cipher)
+	if err != nil {
+		return "", err
+	}
+
+	nonce, err := base64.StdEncoding.DecodeString(base64Nonce)
+	if err != nil {
+		return "", err
+	}
+
+	sealData, err := base64.StdEncoding.DecodeString(base64Seal)
+	if err != nil {
+		return "", err
+	}
+
+	// Create a new ChaCha20-Poly1305 AEAD cipher instance using the key
+	cipher, err := chacha20poly1305.New([]byte(keyStr))
+	if err != nil {
+		return "", err
+	}
+
+	// Use the same nonce generation method as in Swift
+	//generatedNonce := generateNonce()
+
+	// Decrypt the ciphertext
+	//decrypted, err := cipher.Open(nil, nonce, ciphertext, sealData)
+	decrypted, err := cipher.Open(nil, nonce, ciphertext, sealData)
+	if err != nil {
+		return "", err
+	}
+
+	return string(decrypted), nil
+}
+
+func generateNonce() []byte {
+	nonce := make([]byte, chacha20poly1305.NonceSize)
+	_, err := io.ReadFull(rand.Reader, nonce)
+	if err != nil {
+		panic(err) // Handle this error more gracefully in your code
+	}
+	return nonce
+}
+
+/*
 
  */
