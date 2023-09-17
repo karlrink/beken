@@ -2,46 +2,58 @@ package main
 
 import (
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
-	"encoding/hex"
+	"encoding/pem"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
-	"strings"
 	"time"
-
-	"golang.org/x/crypto/chacha20poly1305"
 )
 
-var version = "1.0.0.🍁-2023-09-15 2"
+var version = "1.0.0.🍁-2023-09-17"
 
 func main() {
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: " + os.Args[0] + " name key_file localhost:9480")
+		fmt.Println("Usage: " + os.Args[0] + " name public.pem localhost:9480")
 		return
 	}
 
 	name := os.Args[1]
-	keyFile := os.Args[2]
+	publicKey := os.Args[2] //public.pem
 	destination := os.Args[3]
 
-	// Read the file contents into a variable
-	keyBytes, err := ioutil.ReadFile(keyFile)
+	// Load the RSA public key from the public key file.
+	loadedPublicKey, err := loadPublicKey(publicKey)
 	if err != nil {
-		fmt.Println("Error reading file:", err)
+		fmt.Println("Error loading public key:", err)
 		return
 	}
 
-	// Convert the file contents to a string and remove leading/trailing white spaces
-	keyStr := strings.TrimSpace(string(keyBytes))
+	plaintext := "Beken packet"
 
-	// Ensure the key is exactly 32 bytes (256 bits) long
-	if len(keyStr) != 32 {
-		fmt.Println("Invalid key length. Key must be 32 bytes long.")
+	base64Cipher, err := encrypt(plaintext, loadedPublicKey)
+	if err != nil {
+		fmt.Println("Error encrypt:", err)
 		return
+	}
+
+	dataStr := name + " " + base64Cipher
+
+	fmt.Println("base64 Cipher: " + dataStr)
+
+	data := []byte(dataStr)
+
+	// Calculate the number of bytes in the byte slice
+	byteCount := len(data)
+
+	fmt.Printf("Size of the string in bytes: %d\n", byteCount)
+
+	// Check if the string is greater than 64KB (64 * 1024 bytes)
+	if byteCount > 64*1024 {
+		fmt.Println("The string is greater than 64KB.")
 	}
 
 	udpAddr, err := net.ResolveUDPAddr("udp", destination)
@@ -56,36 +68,6 @@ func main() {
 		return
 	}
 	defer conn.Close()
-
-	//key := []byte("0123456789ABCDEF0123456789ABCDEF") // 32 bytes for AES-256
-	key := []byte(keyStr) // 32 bytes for AES-256
-
-	hexCipher, hexNonce, err := encrypt(keyStr, key)
-	if err != nil {
-		fmt.Println("Error encrypt:", err)
-		return
-	}
-
-	//dataStr := name + " " + string(hexCipher) + " " + string(hexNonce)
-
-	base64Cipher := base64.StdEncoding.EncodeToString(hexCipher)
-	base64Nonce := base64.StdEncoding.EncodeToString(hexNonce)
-
-	dataStr := name + " " + base64Cipher + " " + base64Nonce
-
-	fmt.Println("dataStr: " + dataStr)
-
-	data := []byte(dataStr)
-
-	// Calculate the number of bytes in the byte slice
-	byteCount := len(data)
-
-	fmt.Printf("Size of the string in bytes: %d\n", byteCount)
-
-	// Check if the string is greater than 64KB (64 * 1024 bytes)
-	if byteCount > 64*1024 {
-		fmt.Println("The string is greater than 64KB.")
-	}
 
 	_, err = conn.Write(data)
 	if err != nil {
@@ -116,138 +98,50 @@ func main() {
 	response := string(buffer[:n])
 	fmt.Println("Received UDP response:", response)
 
-	// decrypt
-
-	str := strings.Split(response, " ")
-	//field1 := str[0] //name
-	field2 := str[1] //cypher
-	field3 := str[2] //nonce
-	//field4 := str[3] //tag
-
-	// Decode base64 ciphertext, nonce
-	decodedCiphertext, err := base64.StdEncoding.DecodeString(field2)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	decodedNonce, err := base64.StdEncoding.DecodeString(field3)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	// Convert decodedCiphertext and decodedNonce to strings
-	//ciphertextStr := string(decodedCiphertext)
-	//nonceStr := string(decodedNonce)
-
-	// Convert decodedCiphertext and decodedNonce to hexadecimal strings
-	ciphertextHex := hex.EncodeToString(decodedCiphertext)
-	nonceHex := hex.EncodeToString(decodedNonce)
-
-	decrypted, err := decrypt(ciphertextHex, nonceHex, []byte(key))
-	if err != nil {
-		log.Println("Error decrypt:", err)
-		return
-	}
-
-	//fmt.Println("Decrypted:  ", decrypted)
-
-	// write new key
-
-	// Open the file for writing. Create it if it doesn't exist, or truncate it if it does.
-	file, err := os.Create(keyFile)
-	if err != nil {
-		fmt.Println("Error creating file:", err)
-		return
-	}
-	defer file.Close()
-
-	// Write the string to the file
-	_, err = file.WriteString(decrypted)
-	if err != nil {
-		fmt.Println("Error writing to file:", err)
-		return
-	}
-
-	fmt.Println("wrote new key")
-
 }
 
-func encrypt(plaintext string, key []byte) ([]byte, []byte, error) {
+func encrypt(plaintext string, publicKey *rsa.PublicKey) (string, error) {
 
-	// Generate a random nonce. The nonce must be unique for each encryption operation.
-	// It should never be reused with the same key.
-	nonce := make([]byte, chacha20poly1305.NonceSize)
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return nil, nil, err
-	}
-
-	// Create a new ChaCha20-Poly1305 AEAD cipher instance using the secret key.
-	aead, err := chacha20poly1305.New(key)
+	// Encrypt the plaintext using the public key.
+	ciphertext, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, []byte(plaintext))
 	if err != nil {
-		return nil, nil, err
+		fmt.Println("Error encrypting:", err)
+		return "", err
 	}
 
-	// Convert the plaintext string to []byte.
-	plaintextBytes := []byte(plaintext)
+	// Encode to Base64
+	base64Cipher := base64.StdEncoding.EncodeToString(ciphertext)
 
-	// Encrypt the plaintext using ChaCha20-Poly1305.
-	ciphertext := aead.Seal(nil, nonce, plaintextBytes, nil)
-
-	// Return the ciphertext and nonce as []byte.
-	return ciphertext, nonce, nil
+	// Return the base64 ciphertext
+	return base64Cipher, nil
 }
 
-func decrypt(ciphertextHex string, nonceHex string, key []byte) (string, error) {
+func loadPublicKey(publicKeyFile string) (*rsa.PublicKey, error) {
 
-	// Parse the hexadecimal strings for ciphertext and nonce.
-	ciphertext, err := hex.DecodeString(ciphertextHex)
+	// Read the public key file.
+	publicKeyData, err := ioutil.ReadFile(publicKeyFile)
 	if err != nil {
-		//log.Fatalf("Failed to decode ciphertext: %v", err)
-		return "", err
-	}
-	if len(ciphertext) == 0 {
-		//log.Fatal("Ciphertext cannot be empty")
-		return "", err
+		return nil, err
 	}
 
-	nonce, err := hex.DecodeString(nonceHex)
+	// Parse the public key PEM block.
+	block, _ := pem.Decode(publicKeyData)
+	if block == nil {
+		return nil, fmt.Errorf("failed to parse public key PEM")
+	}
+
+	// Check the type of the decoded block.
+	if block.Type != "RSA PUBLIC KEY" {
+		return nil, fmt.Errorf("unexpected public key type: %s", block.Type)
+	}
+
+	// Parse the public key as an RSA public key.
+	rsaPublicKey, err := x509.ParsePKCS1PublicKey(block.Bytes)
 	if err != nil {
-		//log.Fatalf("Failed to decode nonce: %v", err)
-		return "", err
-	}
-	if len(nonce) != chacha20poly1305.NonceSize {
-		//log.Fatalf("Nonce must be exactly 12 bytes long")
-		return "", err
+		return nil, err
 	}
 
-	// Print the nonce and ciphertext as hexadecimal strings.
-	fmt.Printf("Nonce: %x\n", nonce)
-	fmt.Printf("Ciphertext: %x\n", ciphertext)
-
-	// Define your secret key. In practice, you should generate a strong secret key.
-	// Do not use this key for anything sensitive.
-	//secretKey := []byte("0123456789abcdef0123456789abcdef")
-
-	// Create a new ChaCha20-Poly1305 AEAD cipher instance using the secret key.
-	aead, err := chacha20poly1305.New(key)
-	if err != nil {
-		//log.Fatalf("Failed to create AEAD cipher: %v", err)
-		return "", err
-	}
-
-	// Decrypt the ciphertext (for demonstration purposes).
-	decrypted, err := aead.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		//log.Fatalf("Decryption error: %v", err)
-		return "", err
-	}
-
-	// Print the decrypted plaintext.
-	fmt.Printf("Decrypted: %s\n", decrypted)
-
-	return string(decrypted), nil
+	return rsaPublicKey, nil
 }
 
 /*
