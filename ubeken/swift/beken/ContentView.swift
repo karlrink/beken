@@ -126,16 +126,19 @@ struct ButtonView: View {
          let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
          print(trimmedKeyStr)
        
-         let nonce = "nonce"
+         //let nonce = "nonce"
          
-         let sharedSecretKeyData = Data(bytes: [UInt8](trimmedKeyStr))
-         let cryptoManager = CryptoManager(sharedSecretKey: sharedSecretKeyData)
+        //let key = SymmetricKey(size: .bits256) // You can choose the key size you prefer.
+        //let cryptoManager = CryptoManager(symmetricKey: key)
+        let cryptoManager = CryptoManager(symmetricKeyStr: trimmedKeyStr)
 
         
         do {
             
-            let encryptedMessage = try cryptoManager.encrypt(plaintext: trimmedKeyStr)
-            let message = "\(nameStr) \(encryptedMessage)"
+            let plainText = "Beken packet 3"
+            
+            let encryptedMessage = try cryptoManager.encrypt(plaintext: plainText)
+            let message = "\(nameStr) 3 \(encryptedMessage)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
             
@@ -173,12 +176,7 @@ struct ButtonView: View {
                 
                 // data sent, now receive recieve
                 
-
-
-                
                 connection?.receiveMessage { data, _, _, error in
-                    
-                    
                     
                     if let error = error {
                         print("Failed to receive data: \(error)")
@@ -186,24 +184,6 @@ struct ButtonView: View {
                             self.outputMessage = "Failed to receive data: \(error.localizedDescription)"
                         }
                         return
-                    }
-                    
-                    let nonce = "nonce"
-
-                    let cryptoManager = CryptoManager(sharedSecretKey)
-                    _ = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
-                    
-                    if let data = data {
-                        let decryptedMessage = try? cryptoManager.decrypt(ciphertext: data)
-                        if let decryptedMessage = decryptedMessage {
-                            print("Decrypted message: \(decryptedMessage)")
-
-                            DispatchQueue.main.async {
-                                self.outputMessage = decryptedMessage
-                            }
-                        } else {
-                            print("Decryption failed")
-                        }
                     }
                     
                 }

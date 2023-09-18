@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/fernet/fernet-go"
@@ -14,13 +15,20 @@ var version = "1.0.0.🍁-2023-09-17"
 
 func main() {
 	if len(os.Args) < 4 {
-		fmt.Println("Usage: " + os.Args[0] + " name key localhost:9480")
+		fmt.Println("Usage: " + os.Args[0] + " name fernet.key localhost:9480")
 		return
 	}
 
 	name := os.Args[1]
-	keyStr := os.Args[2] //12345678901234567890123456789012
+	//keyStr := os.Args[2] //12345678901234567890123456789012
+	keyFile := os.Args[2]
 	destination := os.Args[3]
+
+	keyStr, err := readKeyFromFile(keyFile)
+	if err != nil {
+		fmt.Println("Error reading key from file:", err)
+		return
+	}
 
 	plaintext := "Beken " + time.Now().Format("2006-01-02 15:04:05")
 
@@ -109,6 +117,18 @@ func encryptFernet(plaintext string, fernetKey string) (string, error) {
 
 	// Return the base64 ciphertext
 	return base64Cipher, nil
+}
+
+func readKeyFromFile(keyFile string) (string, error) {
+	keyBytes, err := os.ReadFile(keyFile)
+	if err != nil {
+		return "", err
+	}
+
+	// Trim any newline characters (e.g., '\n', '\r\n') from the end of the key
+	keyStr := strings.TrimRight(string(keyBytes), "\r\n")
+
+	return keyStr, nil
 }
 
 /*

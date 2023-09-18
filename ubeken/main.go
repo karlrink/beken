@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
@@ -18,7 +20,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var version = "1.0.0.🍁-2023-09-17"
+var version = "1.0.0.🍁-2023-09-18"
 
 func usage() {
 
@@ -154,8 +156,34 @@ func main() {
 					log.Println("Sent response %s", clientAddr.String())
 
 				case "2": //fernet
+
+					// Save the IP to the database
+					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					if err != nil {
+						log.Printf("Failed to save IP to database: %v\n", err)
+					} else {
+						log.Printf("Isert IP %s \n", host)
+					}
 					// Send a response back to the client
 					response := "beken 2"
+
+					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+					if err_response != nil {
+						log.Println("Error sending response to client:", err_response)
+					}
+					log.Println("Sent response %s", clientAddr.String())
+
+				case "3": //aes
+
+					// Save the IP to the database
+					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					if err != nil {
+						log.Printf("Failed to save IP to database: %v\n", err)
+					} else {
+						log.Printf("Isert IP %s \n", host)
+					}
+					// Send a response back to the client
+					response := "beken 3"
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
@@ -197,11 +225,11 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error QueryRow database:", err_query)
 			return false, ""
 		}
-		//fmt.Println("Exists in db: " + field1)
+		PrintDebug("Exists in db: " + field1)
 
 		decrypted, err := decryptRSA(field3, key)
 		if err != nil {
-			log.Println("Error decrypt:", err)
+			log.Println("Error decrypt rsa:", err)
 			return false, ""
 		}
 		//fmt.Println("Decrypted:  ", decrypted)
@@ -214,18 +242,41 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error QueryRow database:", err_query)
 			return false, ""
 		}
-		//fmt.Println("Exists in db: " + field1)
+		PrintDebug("Exists in db: " + field1)
 
 		decrypted, err := decryptFernet(field3, key)
 		if err != nil {
-			log.Println("Error decrypt:", err)
+			log.Println("Error decrypt fernet:", err)
 			return false, ""
 		}
 		//fmt.Println("Decrypted:  ", decrypted)
 
 		return exists, decrypted
-	}
 
+	case "3": //aes
+		//field1 := str[0] //name
+		//field2 := str[1] //code
+		//field3 := str[2] //cypher
+		field4 := str[3] //nonce
+		field5 := str[4] //tag
+
+		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM aes_keys WHERE Name = ?), Data FROM aes_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+		if err_query != nil {
+			log.Println("Error QueryRow database:", err_query)
+			return false, ""
+		}
+		PrintDebug("Exists in db: " + field1)
+
+		decrypted, err := decryptAES(field3, field4, field5, key)
+		if err != nil {
+			log.Println("Error decrypt aes:", err)
+			return false, ""
+		}
+		//fmt.Println("Decrypted:  ", decrypted)
+
+		return exists, decrypted
+
+	}
 	return false, ""
 }
 
@@ -251,11 +302,20 @@ func createTables(db *sql.DB) error {
 		return err
 	}
 
-	sql3 := `CREATE TABLE IF NOT EXISTS ips (
+	sql3 := `CREATE TABLE IF NOT EXISTS aes_keys (
         "Name" TEXT PRIMARY KEY NOT NULL,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
 	_, err = db.Exec(sql3)
+	if err != nil {
+		return err
+	}
+
+	sql4 := `CREATE TABLE IF NOT EXISTS ips (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	_, err = db.Exec(sql4)
 	if err != nil {
 		return err
 	}
@@ -323,7 +383,7 @@ func decryptRSA(base64Cipher, keyStr string) (string, error) {
 	// Decrypt the data using the private key
 	decryptedData, err := rsa.DecryptPKCS1v15(nil, privateKey, ciphertext)
 	if err != nil {
-		fmt.Println("Error decrypting data:", err)
+		//fmt.Println("Error decrypting rsa:", err)
 		return "", err
 	}
 
@@ -357,6 +417,60 @@ func decryptFernet(base64Cipher, keyStr string) (string, error) {
 	//fmt.Println(string(msg))
 
 	return string(msg), nil
+}
+
+func decryptAES(base64Cipher, base64Nonce, base64Tag, keyStr string) (string, error) {
+
+	// Decode the Base64 strings to []byte
+	cipherText, err := base64.StdEncoding.DecodeString(base64Cipher)
+	if err != nil {
+		log.Println("Error decoding ciphertext:", err)
+		return "", err
+	}
+
+	nonce, err := base64.StdEncoding.DecodeString(base64Nonce)
+	if err != nil {
+		log.Println("Error decoding nonce:", err)
+		return "", err
+	}
+
+	tag, err := base64.StdEncoding.DecodeString(base64Tag)
+	if err != nil {
+		log.Println("Error decoding tag:", err)
+		return "", err
+	}
+
+	// Your AES encryption key (must be the same as the one used for encryption)
+	//key := []byte("YOUR_AES_KEY_HERE")
+
+	key := []byte(keyStr)
+	log.Println("keyStr: " + keyStr)
+
+	// Create a new AES block cipher with your key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		log.Println("Error creating AES cipher:", err)
+		return "", err
+	}
+
+	// Create a GCM cipher with the block cipher and the nonce
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		log.Println("Error creating GCM cipher:", err)
+		return "", err
+	}
+
+	// Decrypt the ciphertext
+	plainText, err := aesGCM.Open(nil, nonce, cipherText, tag)
+	if err != nil {
+		//log.Println("Error decrypting aes:", err)
+		return "", err
+	}
+
+	// Convert the plaintext to a string and print it
+	log.Println("Decrypted Text:", string(plainText))
+
+	return string(plainText), nil
 }
 
 /*
