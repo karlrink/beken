@@ -32,7 +32,7 @@ func main() {
 		return
 	}
 
-	plaintext := "Beken packet"
+	plaintext := "Beken " + time.Now().Format("2006-01-02 15:04:05")
 
 	base64Cipher, err := encrypt(plaintext, loadedPublicKey)
 	if err != nil {

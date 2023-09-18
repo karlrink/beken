@@ -10,9 +10,11 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"database/sql"
 
+	"github.com/fernet/fernet-go"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -29,6 +31,9 @@ func usage() {
 }
 
 func main() {
+
+	//DEBUG=1 go run main.go
+	PrintDebug("Debug mode enabled")
 
 	if len(os.Args) < 2 {
 		usage()
@@ -108,17 +113,12 @@ func main() {
 		// Process each packet in a Goroutine
 		go func(data string, clientAddr *net.UDPAddr) {
 
-			exists, _ := existsAndDecrypts(db, data)
+			exists, decrypted := existsAndDecrypts(db, data)
 
 			if exists {
 
-				//fmt.Println("Data exists and decrypts:", data)
+				PrintDebug("decrypted: " + decrypted)
 
-				str := strings.Split(data, " ")
-				field1 := str[0] //name
-				//field2 := str[1] //cypher
-
-				// Add clientAddr to db
 				// Convert clientAddr to a string
 				clientAddrStr := clientAddr.String()
 
@@ -128,28 +128,55 @@ func main() {
 					log.Printf("Failed to split host and port: %v\n", err)
 				}
 
-				// Save the IP to the database
-				_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
-				if err != nil {
-					log.Printf("Failed to save IP to database: %v\n", err)
-				} else {
-					log.Printf("Isert IP %s \n", host)
-				}
+				str := strings.Split(data, " ")
+				field1 := str[0] //name
+				field2 := str[1] //code
+				//field3 := str[2] //cypher
 
-				// Send a response back to the client
-				response := "beken"
+				switch field2 {
+				case "1": //rsa
 
-				_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
-				if err_response != nil {
-					log.Println("Error sending response to client:", err_response)
+					// Save the IP to the database
+					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					if err != nil {
+						log.Printf("Failed to save IP to database: %v\n", err)
+					} else {
+						log.Printf("Isert IP %s \n", host)
+					}
+
+					// Send a response back to the client
+					response := "beken 1"
+
+					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+					if err_response != nil {
+						log.Println("Error sending response to client:", err_response)
+					}
+					log.Println("Sent response %s", clientAddr.String())
+
+				case "2": //fernet
+					// Send a response back to the client
+					response := "beken 2"
+
+					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+					if err_response != nil {
+						log.Println("Error sending response to client:", err_response)
+					}
+					log.Println("Sent response %s", clientAddr.String())
+
 				}
-				log.Println("Sent response %s", clientAddr.String())
 
 			} else {
 
 				log.Println("Data does not exist in the database:", data)
 			}
 		}(receivedData, addr)
+	}
+}
+
+func PrintDebug(message string) {
+	debugMode := os.Getenv("DEBUG")
+	if debugMode != "" {
+		fmt.Println(message)
 	}
 }
 
@@ -215,11 +242,20 @@ func createTables(db *sql.DB) error {
 		return err
 	}
 
-	sql2 := `CREATE TABLE IF NOT EXISTS ips (
+	sql2 := `CREATE TABLE IF NOT EXISTS fernet_keys (
         "Name" TEXT PRIMARY KEY NOT NULL,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
 	_, err = db.Exec(sql2)
+	if err != nil {
+		return err
+	}
+
+	sql3 := `CREATE TABLE IF NOT EXISTS ips (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	_, err = db.Exec(sql3)
 	if err != nil {
 		return err
 	}
@@ -296,7 +332,31 @@ func decryptRSA(base64Cipher, keyStr string) (string, error) {
 
 func decryptFernet(base64Cipher, keyStr string) (string, error) {
 
-	return string("INPROGRESS"), nil
+	//keyStr := "12345678901234567890123456789012"
+
+	// Encode the key as a base64 string
+	base64Key := base64.StdEncoding.EncodeToString([]byte(keyStr))
+	//fmt.Println("base64 key: " + base64Key)
+	//k := fernet.MustDecodeKeys("cw_0x689RpI-jtRR7oE8h_eQsKImvJapLeSbXpwF4e4=")
+	k := fernet.MustDecodeKeys(base64Key)
+
+	//base64tok := os.Args[1]
+
+	// Decode the base64 string
+	decodedBytes, err := base64.StdEncoding.DecodeString(base64Cipher)
+	if err != nil {
+		fmt.Println("Error decoding base64:", err)
+		return "", err
+	}
+
+	//tokStr := string(tok)
+	//fmt.Println("Encrypted: " + tok)
+
+	msg := fernet.VerifyAndDecrypt([]byte(decodedBytes), 60*time.Second, k)
+
+	//fmt.Println(string(msg))
+
+	return string(msg), nil
 }
 
 /*
