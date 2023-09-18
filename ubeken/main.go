@@ -440,9 +440,7 @@ func decryptAES(base64Cipher, base64Nonce, base64Tag, keyStr string) (string, er
 		return "", err
 	}
 
-	// Your AES encryption key (must be the same as the one used for encryption)
 	//key := []byte("YOUR_AES_KEY_HERE")
-
 	key := []byte(keyStr)
 	log.Println("keyStr: " + keyStr)
 
