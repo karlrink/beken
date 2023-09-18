@@ -160,24 +160,46 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 
 	str := strings.Split(dataStr, " ")
 	field1 := str[0] //name
-	field2 := str[1] //cypher
+	field2 := str[1] //code
+	field3 := str[2] //cypher
 
-	err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM private_keys WHERE Name = ?), Data FROM private_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
-	if err_query != nil {
-		log.Println("Error QueryRow database:", err_query)
-		return false, ""
+	switch field2 {
+	case "1": //rsa
+		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM private_keys WHERE Name = ?), Data FROM private_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+		if err_query != nil {
+			log.Println("Error QueryRow database:", err_query)
+			return false, ""
+		}
+		//fmt.Println("Exists in db: " + field1)
+
+		decrypted, err := decryptRSA(field3, key)
+		if err != nil {
+			log.Println("Error decrypt:", err)
+			return false, ""
+		}
+		//fmt.Println("Decrypted:  ", decrypted)
+
+		return exists, decrypted
+
+	case "2": //fernet
+		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM fernet_keys WHERE Name = ?), Data FROM fernet_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+		if err_query != nil {
+			log.Println("Error QueryRow database:", err_query)
+			return false, ""
+		}
+		//fmt.Println("Exists in db: " + field1)
+
+		decrypted, err := decryptFernet(field3, key)
+		if err != nil {
+			log.Println("Error decrypt:", err)
+			return false, ""
+		}
+		//fmt.Println("Decrypted:  ", decrypted)
+
+		return exists, decrypted
 	}
 
-	//fmt.Println("Exists in db: " + field1)
-
-	decrypted, err := decrypt(field2, key)
-	if err != nil {
-		log.Println("Error decrypt:", err)
-		return false, ""
-	}
-	//fmt.Println("Decrypted:  ", decrypted)
-
-	return exists, decrypted
+	return false, ""
 }
 
 func createTables(db *sql.DB) error {
@@ -240,9 +262,9 @@ func sqlite3Version(db *sql.DB) (string, error) {
 
  */
 
-func decrypt(base64Cipher, keyStr string) (string, error) {
+func decryptRSA(base64Cipher, keyStr string) (string, error) {
 
-	// Decode base64 strings to byte slices
+	// Decode base64 strings to byte
 	ciphertext, err := base64.StdEncoding.DecodeString(base64Cipher)
 	if err != nil {
 		return "", err
@@ -269,9 +291,12 @@ func decrypt(base64Cipher, keyStr string) (string, error) {
 		return "", err
 	}
 
-	//fmt.Println("Decrypted data:", string(decryptedData))
-
 	return string(decryptedData), nil
+}
+
+func decryptFernet(base64Cipher, keyStr string) (string, error) {
+
+	return string("INPROGRESS"), nil
 }
 
 /*

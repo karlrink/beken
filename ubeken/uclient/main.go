@@ -40,7 +40,7 @@ func main() {
 		return
 	}
 
-	dataStr := name + " " + base64Cipher
+	dataStr := name + " 1 " + base64Cipher
 
 	fmt.Println("base64 Cipher: " + dataStr)
 
