@@ -18,6 +18,8 @@ import (
 
 	"github.com/fernet/fernet-go"
 	_ "github.com/mattn/go-sqlite3"
+
+	"ubeken/gopkg/kes"
 )
 
 var version = "1.0.0.🍁-2023-09-18"
@@ -136,6 +138,25 @@ func main() {
 				//field3 := str[2] //cypher
 
 				switch field2 {
+				case "0": //kes
+
+					// Save the IP to the database
+					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					if err != nil {
+						log.Printf("Failed to save IP to database: %v\n", err)
+					} else {
+						log.Printf("Isert IP %s \n", host)
+					}
+
+					// Send a response back to the client
+					response := "beken 0"
+
+					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+					if err_response != nil {
+						log.Println("Error sending response to client:", err_response)
+					}
+					log.Println("Sent response %s", clientAddr.String())
+
 				case "1": //rsa
 
 					// Save the IP to the database
@@ -219,6 +240,19 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 	field3 := str[2] //cypher
 
 	switch field2 {
+
+	case "0": //kes
+		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM kes_keys WHERE Name = ?), Data FROM kes_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+		if err_query != nil {
+			log.Println("Error QueryRow database:", err_query)
+			return false, ""
+		}
+		PrintDebug("Exists in db: " + field1)
+
+		decrypted := kes.DecryptKES(field3, key)
+
+		return exists, decrypted
+
 	case "1": //rsa
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM private_keys WHERE Name = ?), Data FROM private_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 		if err_query != nil {
@@ -253,7 +287,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 
 		return exists, decrypted
 
-	case "3": //aes
+	case "3": //aes tag
 		//field1 := str[0] //name
 		//field2 := str[1] //code
 		//field3 := str[2] //cypher
@@ -311,11 +345,20 @@ func createTables(db *sql.DB) error {
 		return err
 	}
 
-	sql4 := `CREATE TABLE IF NOT EXISTS ips (
+	sql4 := `CREATE TABLE IF NOT EXISTS kes_keys (
         "Name" TEXT PRIMARY KEY NOT NULL,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
 	_, err = db.Exec(sql4)
+	if err != nil {
+		return err
+	}
+
+	sql5 := `CREATE TABLE IF NOT EXISTS ips (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	_, err = db.Exec(sql5)
 	if err != nil {
 		return err
 	}

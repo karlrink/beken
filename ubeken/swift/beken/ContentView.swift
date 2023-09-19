@@ -138,7 +138,7 @@ struct ButtonView: View {
             let plainText = "Beken packet 3"
             
             let encryptedMessage = try cryptoManager.encrypt(plaintext: plainText)
-            let message = "\(nameStr) 3 \(encryptedMessage)"
+            let message = "\(nameStr) 0 \(encryptedMessage)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
             
@@ -185,6 +185,13 @@ struct ButtonView: View {
                         }
                         return
                     }
+                    
+                    if let data = data, let message = String(data: data, encoding: .utf8) {
+                        DispatchQueue.main.async {
+                            self.outputMessage = message
+                        }
+                    }
+
                     
                 }
                 
