@@ -19,7 +19,7 @@ import (
 	"github.com/fernet/fernet-go"
 	_ "github.com/mattn/go-sqlite3"
 
-	"gitlab.com/krink/ubeken-touer/ubeken/kes/gopkg/kes"
+	"ubeken/kes"
 )
 
 var version = "1.0.0.🍁-2023-09-19"

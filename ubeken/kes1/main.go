@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 
-	//"../gopkg/kes"
-	//"ubeken/kes/gopkg/kes"
-	"gitlab.com/krink/ubeken-touer/ubeken/kes"
+	"ubeken/kes"
 )
 
 func main() {
