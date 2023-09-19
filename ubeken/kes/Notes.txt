@@ -1,0 +1,22 @@
+
+#python3
+# run
+./kes.py
+
+#go
+go build
+# run
+./kes
+
+#swift
+swiftc kes.swiftc
+# run
+./kes
+
+#kotlin
+#kotlinc kes.kt -d kes.jar
+kotlinc kes.kt -include-runtime -d kes.jar
+# run
+java -jar kes.jar
+
+
