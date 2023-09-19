@@ -4,7 +4,8 @@ import (
 	"fmt"
 
 	//"../gopkg/kes"
-	"ubeken/kes/gopkg/kes"
+	//"ubeken/kes/gopkg/kes"
+	"gitlab.com/krink/ubeken-touer/ubeken/kes"
 )
 
 func main() {
