@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 
-	"../gopkg/kes"
+	//"../gopkg/kes"
+	"ubeken/kes/gopkg/kes"
 )
 
 func main() {

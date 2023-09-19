@@ -19,10 +19,10 @@ import (
 	"github.com/fernet/fernet-go"
 	_ "github.com/mattn/go-sqlite3"
 
-	"ubeken/gopkg/kes"
+	"ubeken/kes/gopkg/kes"
 )
 
-var version = "1.0.0.🍁-2023-09-18"
+var version = "1.0.0.🍁-2023-09-19"
 
 func usage() {
 
