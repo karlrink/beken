@@ -121,6 +121,7 @@ func main() {
 
 			if exists {
 
+				PrintDebug(data)
 				PrintDebug("decrypted: " + decrypted)
 
 				// Convert clientAddr to a string
@@ -141,7 +142,7 @@ func main() {
 				case "0": //kes
 
 					// Save the IP to the database
-					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
@@ -160,7 +161,7 @@ func main() {
 				case "1": //rsa
 
 					// Save the IP to the database
-					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
@@ -179,7 +180,7 @@ func main() {
 				case "2": //fernet
 
 					// Save the IP to the database
-					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
@@ -197,7 +198,7 @@ func main() {
 				case "3": //aes
 
 					// Save the IP to the database
-					_, err = db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
@@ -212,11 +213,29 @@ func main() {
 					}
 					log.Println("Sent response %s", clientAddr.String())
 
+				case "X": //XOR
+
+					// Save the IP to the database
+					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					if err != nil {
+						log.Printf("Failed to save IP to database: %v\n", err)
+					} else {
+						log.Printf("Isert IP %s \n", host)
+					}
+
+					// Send a response back to the client
+					response := "beken X"
+
+					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+					if err_response != nil {
+						log.Println("Error sending response to client:", err_response)
+					}
+					log.Println("Sent response %s", clientAddr.String())
+
 				}
 
 			} else {
-
-				log.Println("Data does not exist in the database:", data)
+				log.Println("Does not exist in the database:", data)
 			}
 		}(receivedData, addr)
 	}
@@ -310,6 +329,27 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 
 		return exists, decrypted
 
+	case "X": //XOR
+		//field1 := str[0] //name
+		//field2 := str[1] //code
+		//field3 := str[2] //cypher
+
+		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM ubeken_keys WHERE Name = ?), Data FROM ubeken_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+		if err_query != nil {
+			log.Println("Error QueryRow database:", err_query)
+			return false, ""
+		}
+		PrintDebug("Exists in db: " + field1)
+
+		decrypted := kes.XorDecrypt(field3, key)
+		if decrypted == "" {
+			log.Println("Error decrypt xor: empty")
+			return false, ""
+		}
+		//fmt.Println("Decrypted:  ", decrypted)
+
+		return exists, decrypted
+
 	}
 	return false, ""
 }
@@ -318,47 +358,56 @@ func createTables(db *sql.DB) error {
 
 	// Create tables in the database
 
-	sql1 := `CREATE TABLE IF NOT EXISTS private_keys (
+	sql := `CREATE TABLE IF NOT EXISTS private_keys (
 		"Name" TEXT PRIMARY KEY NOT NULL,
 		"Data" TEXT,
 		"Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
-	_, err := db.Exec(sql1)
+	_, err := db.Exec(sql)
 	if err != nil {
 		return err
 	}
 
-	sql2 := `CREATE TABLE IF NOT EXISTS fernet_keys (
+	sql = `CREATE TABLE IF NOT EXISTS fernet_keys (
         "Name" TEXT PRIMARY KEY NOT NULL,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
-	_, err = db.Exec(sql2)
+	_, err = db.Exec(sql)
 	if err != nil {
 		return err
 	}
 
-	sql3 := `CREATE TABLE IF NOT EXISTS aes_keys (
+	sql = `CREATE TABLE IF NOT EXISTS aes_keys (
         "Name" TEXT PRIMARY KEY NOT NULL,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
-	_, err = db.Exec(sql3)
+	_, err = db.Exec(sql)
 	if err != nil {
 		return err
 	}
 
-	sql4 := `CREATE TABLE IF NOT EXISTS kes_keys (
+	sql = `CREATE TABLE IF NOT EXISTS kes_keys (
         "Name" TEXT PRIMARY KEY NOT NULL,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
-	_, err = db.Exec(sql4)
+	_, err = db.Exec(sql)
 	if err != nil {
 		return err
 	}
 
-	sql5 := `CREATE TABLE IF NOT EXISTS ips (
+	sql = `CREATE TABLE IF NOT EXISTS ubeken_keys (
         "Name" TEXT PRIMARY KEY NOT NULL,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
-	_, err = db.Exec(sql5)
+	_, err = db.Exec(sql)
+	if err != nil {
+		return err
+	}
+
+	sql = `CREATE TABLE IF NOT EXISTS ips (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	_, err = db.Exec(sql)
 	if err != nil {
 		return err
 	}

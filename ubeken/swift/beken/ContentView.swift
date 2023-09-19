@@ -135,10 +135,15 @@ struct ButtonView: View {
         
         do {
             
-            let plainText = "Beken packet 3"
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+            let timestamp = dateFormatter.string(from: Date())
+
+            
+            let plainText = "Beken packet X " + timestamp
             
             let encryptedMessage = try cryptoManager.encrypt(plaintext: plainText)
-            let message = "\(nameStr) 0 \(encryptedMessage)"
+            let message = "\(nameStr) X \(encryptedMessage)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
             

@@ -13,26 +13,21 @@ import CryptoKit
 class CryptoManager {
     
     
-    private let symmetricKey: SymmetricKey
+    private let symmetricKeyStr: String
 
     init(symmetricKeyStr: String) {
-        // Convert the provided key string to Data
-        guard let keyData = Data(base64Encoded: symmetricKeyStr) else {
-            fatalError("Invalid symmetric key string")
-        }
-        
-        // Create a SymmetricKey from the key data
-        self.symmetricKey = SymmetricKey(data: keyData)
+        self.symmetricKeyStr = symmetricKeyStr
     }
 
+
     func encrypt(plaintext: String) throws -> String {
-        let kesEncrypted = try encryptKES(plainText: plaintext, symmetricKey: symmetricKey)
-        return kesEncrypted
+        let xorEncrypted = xorEncrypt(plainText: plaintext, keyStr: symmetricKeyStr)
+        return xorEncrypted
     }
 
     func decrypt(encryptedString: String) throws -> String {
-        let kesDecrypted = try decryptKES(base64Cipher: encryptedString, symmetricKey: symmetricKey)
-        return kesDecrypted
+        let xorDecrypted = xorDecrypt(base64Cipher: encryptedString, keyStr: symmetricKeyStr)
+        return xorDecrypted
     }
     
     
