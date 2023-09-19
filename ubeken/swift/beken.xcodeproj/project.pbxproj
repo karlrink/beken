@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2E30B27B2AB813FE00B0D2A2 /* Crypto in Frameworks */ = {isa = PBXBuildFile; productRef = 2E30B27A2AB813FE00B0D2A2 /* Crypto */; };
-		2E30B27D2AB813FE00B0D2A2 /* _CryptoExtras in Frameworks */ = {isa = PBXBuildFile; productRef = 2E30B27C2AB813FE00B0D2A2 /* _CryptoExtras */; };
 		2E3D1F402AB957C00038A37A /* kes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3D1F3F2AB957C00038A37A /* kes.swift */; };
 		2EEBD18D2AB6767300BFB69E /* CryptoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEBD18C2AB6767300BFB69E /* CryptoManager.swift */; };
 		2EF708BA2AB25EB200102498 /* bekenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF708B92AB25EB200102498 /* bekenApp.swift */; };
@@ -32,8 +30,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2E30B27D2AB813FE00B0D2A2 /* _CryptoExtras in Frameworks */,
-				2E30B27B2AB813FE00B0D2A2 /* Crypto in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,8 +90,6 @@
 			);
 			name = beken;
 			packageProductDependencies = (
-				2E30B27A2AB813FE00B0D2A2 /* Crypto */,
-				2E30B27C2AB813FE00B0D2A2 /* _CryptoExtras */,
 			);
 			productName = beken;
 			productReference = 2EF708B62AB25EB200102498 /* beken.app */;
@@ -126,7 +120,6 @@
 			);
 			mainGroup = 2EF708AD2AB25EB200102498;
 			packageReferences = (
-				2E30B2792AB813FE00B0D2A2 /* XCRemoteSwiftPackageReference "swift-crypto" */,
 			);
 			productRefGroup = 2EF708B72AB25EB200102498 /* Products */;
 			projectDirPath = "";
@@ -356,30 +349,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		2E30B2792AB813FE00B0D2A2 /* XCRemoteSwiftPackageReference "swift-crypto" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-crypto.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.0.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		2E30B27A2AB813FE00B0D2A2 /* Crypto */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 2E30B2792AB813FE00B0D2A2 /* XCRemoteSwiftPackageReference "swift-crypto" */;
-			productName = Crypto;
-		};
-		2E30B27C2AB813FE00B0D2A2 /* _CryptoExtras */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 2E30B2792AB813FE00B0D2A2 /* XCRemoteSwiftPackageReference "swift-crypto" */;
-			productName = _CryptoExtras;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2EF708AE2AB25EB200102498 /* Project object */;
 }
