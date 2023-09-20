@@ -143,7 +143,7 @@ struct ButtonView: View {
             let plainText = "Beken packet X " + timestamp
             
             let encryptedMessage = try cryptoManager.encrypt(plaintext: plainText)
-            let message = "\(nameStr) X \(encryptedMessage)"
+            let message = "\(nameStr) 0 \(encryptedMessage)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
             

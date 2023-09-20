@@ -147,43 +147,38 @@ func decryptRailFence(base64Cipher: String, numRails: Int) -> String {
 
 
 
-func encryptKES(plainText: String, symmetricKey: SymmetricKey) throws -> String {
+func encryptKES(plainText: String, keyStr: String) throws -> String {
     var order = 0
 
-    symmetricKey.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
-        for byte in ptr {
-            order += Int(byte)
-        }
+    for char in keyStr {
+        order += Int(char.asciiValue ?? 0)
     }
 
     order %= 2
 
-    let railFenceEncrypted = encryptRailFence(plainText: plainText, numRails: symmetricKey.bitCount / 8)
+    let railFenceEncrypted = encryptRailFence(plainText: plainText, numRails: keyStr.count)
 
     if order == 0 {
-        let xorEncrypted = xorEncrypt(plainText: railFenceEncrypted, keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
-        let encrypted = vigenereEncrypt(plainText: xorEncrypted, keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
+        let xorEncrypted = xorEncrypt(plainText: railFenceEncrypted, keyStr: keyStr)
+        let encrypted = vigenereEncrypt(plainText: xorEncrypted, keyStr: keyStr)
         return Data(encrypted.utf8).base64EncodedString()
     }
 
-    let vigenereEncrypted = vigenereEncrypt(plainText: railFenceEncrypted, keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
-    let xorEncrypted = xorEncrypt(plainText: vigenereEncrypted, keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
+    let vigenereEncrypted = vigenereEncrypt(plainText: railFenceEncrypted, keyStr: keyStr)
+    let xorEncrypted = xorEncrypt(plainText: vigenereEncrypted, keyStr: keyStr)
 
     return Data(xorEncrypted.utf8).base64EncodedString()
 }
 
-
-func decryptKES(base64Cipher: String, symmetricKey: SymmetricKey) throws -> String {
+func decryptKES(base64Cipher: String, keyStr: String) throws -> String {
     guard let base64DecodedData = Data(base64Encoded: base64Cipher) else {
         return ""
     }
 
     var order = 0
 
-    symmetricKey.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
-        for byte in ptr {
-            order += Int(byte)
-        }
+    for char in keyStr {
+        order += Int(char.asciiValue ?? 0)
     }
 
     order %= 2
@@ -191,14 +186,15 @@ func decryptKES(base64Cipher: String, symmetricKey: SymmetricKey) throws -> Stri
     var decrypted = ""
 
     if order == 0 {
-        let decodedXor = xorDecrypt(base64Cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
-        let decodedVigenere = vigenereDecrypt(hexCipher: decodedXor, keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
-        decrypted = decryptRailFence(base64Cipher: decodedVigenere, numRails: symmetricKey.bitCount / 8)
+        let decodedXor = xorDecrypt(base64Cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", keyStr: keyStr)
+        let decodedVigenere = vigenereDecrypt(hexCipher: decodedXor, keyStr: keyStr)
+        decrypted = decryptRailFence(base64Cipher: decodedVigenere, numRails: keyStr.count)
     } else {
-        let decodedXor = xorDecrypt(base64Cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
-        let decodedVigenere = vigenereDecrypt(hexCipher: decodedXor, keyStr: symmetricKey.withUnsafeBytes { Data($0) }.base64EncodedString())
-        decrypted = decryptRailFence(base64Cipher: decodedVigenere, numRails: symmetricKey.bitCount / 8)
+        let decodedXor = xorDecrypt(base64Cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", keyStr: keyStr)
+        let decodedVigenere = vigenereDecrypt(hexCipher: decodedXor, keyStr: keyStr)
+        decrypted = decryptRailFence(base64Cipher: decodedVigenere, numRails: keyStr.count)
     }
 
     return decrypted
 }
+

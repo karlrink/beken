@@ -21,13 +21,13 @@ class CryptoManager {
 
 
     func encrypt(plaintext: String) throws -> String {
-        let xorEncrypted = xorEncrypt(plainText: plaintext, keyStr: symmetricKeyStr)
-        return xorEncrypted
+        let Encrypted = try encryptKES(plainText: plaintext, keyStr: symmetricKeyStr)
+        return Encrypted
     }
 
     func decrypt(encryptedString: String) throws -> String {
-        let xorDecrypted = xorDecrypt(base64Cipher: encryptedString, keyStr: symmetricKeyStr)
-        return xorDecrypted
+        let Decrypted = try decryptKES(base64Cipher: encryptedString, keyStr: symmetricKeyStr)
+        return Decrypted
     }
     
     

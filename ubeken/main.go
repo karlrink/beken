@@ -269,6 +269,10 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 		PrintDebug("Exists in db: " + field1)
 
 		decrypted := kes.DecryptKES(field3, key)
+		if decrypted == "" {
+			log.Println("Error decrypt xor: empty")
+			return false, ""
+		}
 
 		return exists, decrypted
 
