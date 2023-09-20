@@ -137,13 +137,16 @@ struct ButtonView: View {
             
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            let timestamp = dateFormatter.string(from: Date())
+            //let timestamp = dateFormatter.string(from: Date())
 
             
-            let plainText = "Beken packet X " + timestamp
+            //let plainText = "Beken packet AES128 " + timestamp
+            
+            let plainText = "Beken packet AES128"
             
             let encryptedMessage = try cryptoManager.encrypt(plaintext: plainText)
-            let message = "\(nameStr) 0 \(encryptedMessage)"
+            
+            let message = "\(nameStr) A1 \(encryptedMessage)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
             
@@ -218,9 +221,5 @@ struct ButtonView: View {
 
         connection?.start(queue: .global())
     }
-    
- 
-
-
 
 }

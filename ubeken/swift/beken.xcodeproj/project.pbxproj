@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2E1116182ABBA65000A13066 /* aes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E1116172ABBA65000A13066 /* aes.swift */; };
 		2E3D1F402AB957C00038A37A /* kes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E3D1F3F2AB957C00038A37A /* kes.swift */; };
 		2EEBD18D2AB6767300BFB69E /* CryptoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EEBD18C2AB6767300BFB69E /* CryptoManager.swift */; };
 		2EF708BA2AB25EB200102498 /* bekenApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF708B92AB25EB200102498 /* bekenApp.swift */; };
@@ -16,6 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2E1116172ABBA65000A13066 /* aes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = aes.swift; sourceTree = "<group>"; };
 		2E3D1F3F2AB957C00038A37A /* kes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = kes.swift; sourceTree = "<group>"; };
 		2EEBD18C2AB6767300BFB69E /* CryptoManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = CryptoManager.swift; path = beken/CryptoManager.swift; sourceTree = SOURCE_ROOT; };
 		2EF708B62AB25EB200102498 /* beken.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = beken.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -69,6 +71,7 @@
 				2EEBD18C2AB6767300BFB69E /* CryptoManager.swift */,
 				2EF708C02AB25EB300102498 /* Preview Assets.xcassets */,
 				2E3D1F3F2AB957C00038A37A /* kes.swift */,
+				2E1116172ABBA65000A13066 /* aes.swift */,
 			);
 			path = "Preview Content";
 			sourceTree = "<group>";
@@ -148,6 +151,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2EEBD18D2AB6767300BFB69E /* CryptoManager.swift in Sources */,
+				2E1116182ABBA65000A13066 /* aes.swift in Sources */,
 				2EF708BC2AB25EB200102498 /* ContentView.swift in Sources */,
 				2EF708BA2AB25EB200102498 /* bekenApp.swift in Sources */,
 				2E3D1F402AB957C00038A37A /* kes.swift in Sources */,

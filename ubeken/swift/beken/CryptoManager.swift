@@ -21,18 +21,32 @@ class CryptoManager {
 
 
     func encrypt(plaintext: String) throws -> String {
-        let Encrypted = try encryptKES(plainText: plaintext, keyStr: symmetricKeyStr)
-        return Encrypted
+        let Encrypted = encryptAESString(plaintext, key: symmetricKeyStr)
+        return Encrypted!.base64EncodedString()
     }
 
     func decrypt(encryptedString: String) throws -> String {
-        let Decrypted = try decryptKES(base64Cipher: encryptedString, keyStr: symmetricKeyStr)
+        // Decode the Base64-encoded encrypted string into Data
+        guard let encryptedData = Data(base64Encoded: encryptedString) else {
+            throw DecryptionError.invalidBase64
+        }
+        
+        // Decrypt the data using your decryptAESData function (assuming you have this function)
+        let Decrypted = decryptAESData(encryptedData, key: symmetricKeyStr)!
+        
         return Decrypted
     }
+
     
     
     enum CryptoError: Error {
         case decryptionFailed
     }
+    
+    enum DecryptionError: Error {
+        case invalidBase64
+        case invalidDecryptedData
+    }
+
     
 }

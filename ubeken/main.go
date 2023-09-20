@@ -22,7 +22,7 @@ import (
 	"ubeken/kes"
 )
 
-var version = "1.0.0.🍁-2023-09-19"
+var version = "1.0.0.🍁-2023-09-20"
 
 func usage() {
 
@@ -122,7 +122,9 @@ func main() {
 			if exists {
 
 				PrintDebug(data)
+				fmt.Println(data)
 				PrintDebug("decrypted: " + decrypted)
+				fmt.Println(decrypted)
 
 				// Convert clientAddr to a string
 				clientAddrStr := clientAddr.String()
@@ -232,6 +234,28 @@ func main() {
 					}
 					log.Println("Sent response %s", clientAddr.String())
 
+				case "A1": //aes128
+
+					// Save the IP to the database
+					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					if err != nil {
+						log.Printf("Failed to save IP to database: %v\n", err)
+					} else {
+						log.Printf("Isert IP %s \n", host)
+					}
+
+					// Send a response back to the client
+					response := "beken aes128"
+
+					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+					if err_response != nil {
+						log.Println("Error sending response to client:", err_response)
+					}
+					log.Println("Sent response %s", clientAddr.String())
+
+				default:
+					log.Println("code not found: " + field2)
+
 				}
 
 			} else {
@@ -310,7 +334,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 
 		return exists, decrypted
 
-	case "3": //aes tag
+	case "3": //aes gcm
 		//field1 := str[0] //name
 		//field2 := str[1] //code
 		//field3 := str[2] //cypher
@@ -324,7 +348,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 		}
 		PrintDebug("Exists in db: " + field1)
 
-		decrypted, err := decryptAES(field3, field4, field5, key)
+		decrypted, err := decryptAESGCM(field3, field4, field5, key)
 		if err != nil {
 			log.Println("Error decrypt aes:", err)
 			return false, ""
@@ -348,6 +372,32 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 		decrypted := kes.XorDecrypt(field3, key)
 		if decrypted == "" {
 			log.Println("Error decrypt xor: empty")
+			return false, ""
+		}
+		//fmt.Println("Decrypted:  ", decrypted)
+
+		return exists, decrypted
+
+	case "A1": //aes128
+		//field1 := str[0] //name
+		//field2 := str[1] //code
+		//field3 := str[2] //cypher
+
+		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM aes_keys WHERE Name = ?), Data FROM aes_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+		if err_query != nil {
+			log.Println("Error QueryRow database:", err_query)
+			return false, ""
+		}
+		PrintDebug("Exists in db: " + field1)
+
+		decrypted, err := decryptAES128(field3, key)
+		if err != nil {
+			log.Println("Error decrypt aes128:", err)
+			return false, ""
+		}
+
+		if decrypted == "" {
+			log.Println("Error decrypt aes128: empty")
 			return false, ""
 		}
 		//fmt.Println("Decrypted:  ", decrypted)
@@ -515,7 +565,7 @@ func decryptFernet(base64Cipher, keyStr string) (string, error) {
 	return string(msg), nil
 }
 
-func decryptAES(base64Cipher, base64Nonce, base64Tag, keyStr string) (string, error) {
+func decryptAESGCM(base64Cipher, base64Nonce, base64Tag, keyStr string) (string, error) {
 
 	// Decode the Base64 strings to []byte
 	cipherText, err := base64.StdEncoding.DecodeString(base64Cipher)
@@ -565,6 +615,50 @@ func decryptAES(base64Cipher, base64Nonce, base64Tag, keyStr string) (string, er
 	log.Println("Decrypted Text:", string(plainText))
 
 	return string(plainText), nil
+}
+
+func decryptAES128(base64Cipher, keyStr string) (string, error) {
+
+	// Decode the Base64 strings to []byte
+	cipherText, err := base64.StdEncoding.DecodeString(base64Cipher)
+	if err != nil {
+		log.Println("Error decoding ciphertext:", err)
+		return "", err
+	}
+
+	key := []byte(keyStr)
+	PrintDebug("keyStr: " + keyStr)
+
+	// Create a new AES-128 block cipher with key
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		log.Println("Error creating AES cipher:", err)
+		return "", err
+	}
+
+	// Check if the ciphertext length is valid
+	if len(cipherText) < aes.BlockSize {
+		log.Println("Ciphertext is too short")
+		return "", err
+	}
+
+	// Decrypt the ciphertext
+	iv := cipherText[:aes.BlockSize]
+	cipherText = cipherText[aes.BlockSize:]
+
+	mode := cipher.NewCBCDecrypter(block, iv)
+	mode.CryptBlocks(cipherText, cipherText)
+
+	// Remove PKCS7 padding (if used)
+	padding := cipherText[len(cipherText)-1]
+	cipherText = cipherText[:len(cipherText)-int(padding)]
+
+	// Convert the plaintext to a string and return it
+	decryptedText := string(cipherText)
+	log.Println("Decrypted Text:", decryptedText)
+
+	return decryptedText, nil
+
 }
 
 /*
