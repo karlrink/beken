@@ -1,4 +1,4 @@
-module uclient
+module rclient
 
 go 1.18
 
