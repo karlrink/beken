@@ -382,6 +382,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 		//field1 := str[0] //name
 		//field2 := str[1] //code
 		//field3 := str[2] //cypher
+		//field4 := str[3] //iv
 
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM aes_keys WHERE Name = ?), Data FROM aes_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 		if err_query != nil {
@@ -396,10 +397,10 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		if decrypted == "" {
-			log.Println("Error decrypt aes128: empty")
-			return false, ""
-		}
+		//if decrypted == "" {
+		//		log.Println("Error decrypt aes128: empty")
+		//		return false, ""
+		//	}
 		//fmt.Println("Decrypted:  ", decrypted)
 
 		return exists, decrypted
@@ -618,8 +619,7 @@ func decryptAESGCM(base64Cipher, base64Nonce, base64Tag, keyStr string) (string,
 }
 
 func decryptAES128(base64Cipher, keyStr string) (string, error) {
-
-	// Decode the Base64 strings to []byte
+	// Decode the Base64 string to []byte
 	cipherText, err := base64.StdEncoding.DecodeString(base64Cipher)
 	if err != nil {
 		log.Println("Error decoding ciphertext:", err)
@@ -627,7 +627,6 @@ func decryptAES128(base64Cipher, keyStr string) (string, error) {
 	}
 
 	key := []byte(keyStr)
-	PrintDebug("keyStr: " + keyStr)
 
 	// Create a new AES-128 block cipher with key
 	block, err := aes.NewCipher(key)
@@ -636,29 +635,27 @@ func decryptAES128(base64Cipher, keyStr string) (string, error) {
 		return "", err
 	}
 
-	// Check if the ciphertext length is valid
-	if len(cipherText) < aes.BlockSize {
-		log.Println("Ciphertext is too short")
-		return "", err
-	}
+	// Use a fixed IV (all zero bytes) for decryption
+	iv := make([]byte, aes.BlockSize)
+
+	// Initialize the decryption mode with the IV
+	decrypter := cipher.NewCBCDecrypter(block, iv)
 
 	// Decrypt the ciphertext
-	iv := cipherText[:aes.BlockSize]
-	cipherText = cipherText[aes.BlockSize:]
+	decryptedText := make([]byte, len(cipherText))
+	decrypter.CryptBlocks(decryptedText, cipherText)
 
-	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(cipherText, cipherText)
-
-	// Remove PKCS7 padding (if used)
-	padding := cipherText[len(cipherText)-1]
-	cipherText = cipherText[:len(cipherText)-int(padding)]
+	// Remove PKCS7 padding (if used during encryption)
+	padding := int(decryptedText[len(decryptedText)-1])
+	if padding > 0 && padding <= aes.BlockSize {
+		decryptedText = decryptedText[:len(decryptedText)-padding]
+	}
 
 	// Convert the plaintext to a string and return it
-	decryptedText := string(cipherText)
-	log.Println("Decrypted Text:", decryptedText)
+	decryptedStr := string(decryptedText)
+	log.Println("Decrypted Text:", decryptedStr)
 
-	return decryptedText, nil
-
+	return decryptedStr, nil
 }
 
 /*

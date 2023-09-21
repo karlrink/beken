@@ -14,18 +14,23 @@ class CryptoManager {
     
     
     private let symmetricKeyStr: String
-
+    
     init(symmetricKeyStr: String) {
         self.symmetricKeyStr = symmetricKeyStr
     }
+    
+    func encryptXOR(plaintext: String) throws -> String {
+        let xorEncrypted = xorEncrypt(plaintext: plaintext, key: symmetricKeyStr)
+        return xorEncrypted
+    }
 
 
-    func encrypt(plaintext: String) throws -> String {
+    func encryptAES(plaintext: String) throws -> String {
         let Encrypted = encryptAESString(plaintext, key: symmetricKeyStr)
         return Encrypted!.base64EncodedString()
     }
 
-    func decrypt(encryptedString: String) throws -> String {
+    func decryptAES(encryptedString: String) throws -> String {
         // Decode the Base64-encoded encrypted string into Data
         guard let encryptedData = Data(base64Encoded: encryptedString) else {
             throw DecryptionError.invalidBase64

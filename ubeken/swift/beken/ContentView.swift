@@ -137,19 +137,18 @@ struct ButtonView: View {
             
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
-            //let timestamp = dateFormatter.string(from: Date())
+            let timestamp = dateFormatter.string(from: Date())
 
             
-            //let plainText = "Beken packet AES128 " + timestamp
+            let plainText = "Beken packet AES128 " + timestamp
+            let encryptedMessageAES = try cryptoManager.encryptAES(plaintext: plainText)
+            let message = "\(nameStr) A1 \(encryptedMessageAES)"
             
-            let plainText = "Beken packet AES128"
-            
-            let encryptedMessage = try cryptoManager.encrypt(plaintext: plainText)
-            
-            let message = "\(nameStr) A1 \(encryptedMessage)"
+            //let plainText = "Beken packet XOR " + timestamp
+            //let encryptedMessageXOR = try cryptoManager.encryptXOR(plaintext: plainText)
+            //let message = "\(nameStr) X \(encryptedMessageXOR)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
-            
             print(message)
             //print(messageTrim)
             

@@ -8,9 +8,9 @@
 import Foundation
 import Crypto
 
-func xorEncrypt(plainText: String, keyStr: String) -> String {
-    let plaintextBytes = Array(plainText.utf8)
-    let keyBytes = Array(keyStr.utf8)
+func xorEncrypt(plaintext: String, key: String) -> String {
+    let plaintextBytes = Array(plaintext.utf8)
+    let keyBytes = Array(key.utf8)
     var encryptedData = [UInt8](repeating: 0, count: plaintextBytes.count)
 
     for i in 0..<plaintextBytes.count {
@@ -22,13 +22,13 @@ func xorEncrypt(plainText: String, keyStr: String) -> String {
     return data.base64EncodedString()
 }
 
-func xorDecrypt(base64Cipher: String, keyStr: String) -> String {
-    guard let cipherData = Data(base64Encoded: base64Cipher) else {
+func xorDecrypt(base64cipher: String, key: String) -> String {
+    guard let cipherData = Data(base64Encoded: base64cipher) else {
         return ""
     }
 
     let cipherBytes = Array(cipherData)
-    let keyBytes = Array(keyStr.utf8)
+    let keyBytes = Array(key.utf8)
     var decryptedData = [UInt8](repeating: 0, count: cipherBytes.count)
 
     for i in 0..<cipherBytes.count {
@@ -159,13 +159,13 @@ func encryptKES(plainText: String, keyStr: String) throws -> String {
     let railFenceEncrypted = encryptRailFence(plainText: plainText, numRails: keyStr.count)
 
     if order == 0 {
-        let xorEncrypted = xorEncrypt(plainText: railFenceEncrypted, keyStr: keyStr)
+        let xorEncrypted = xorEncrypt(plaintext: railFenceEncrypted, key: keyStr)
         let encrypted = vigenereEncrypt(plainText: xorEncrypted, keyStr: keyStr)
         return Data(encrypted.utf8).base64EncodedString()
     }
 
     let vigenereEncrypted = vigenereEncrypt(plainText: railFenceEncrypted, keyStr: keyStr)
-    let xorEncrypted = xorEncrypt(plainText: vigenereEncrypted, keyStr: keyStr)
+    let xorEncrypted = xorEncrypt(plaintext: vigenereEncrypted, key: keyStr)
 
     return Data(xorEncrypted.utf8).base64EncodedString()
 }
@@ -186,11 +186,11 @@ func decryptKES(base64Cipher: String, keyStr: String) throws -> String {
     var decrypted = ""
 
     if order == 0 {
-        let decodedXor = xorDecrypt(base64Cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", keyStr: keyStr)
+        let decodedXor = xorDecrypt(base64cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", key: keyStr)
         let decodedVigenere = vigenereDecrypt(hexCipher: decodedXor, keyStr: keyStr)
         decrypted = decryptRailFence(base64Cipher: decodedVigenere, numRails: keyStr.count)
     } else {
-        let decodedXor = xorDecrypt(base64Cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", keyStr: keyStr)
+        let decodedXor = xorDecrypt(base64cipher: String(data: base64DecodedData, encoding: .utf8) ?? "", key: keyStr)
         let decodedVigenere = vigenereDecrypt(hexCipher: decodedXor, keyStr: keyStr)
         decrypted = decryptRailFence(base64Cipher: decodedVigenere, numRails: keyStr.count)
     }
