@@ -122,9 +122,7 @@ func main() {
 			if exists {
 
 				PrintDebug(data)
-				fmt.Println(data)
 				PrintDebug("decrypted: " + decrypted)
-				fmt.Println(decrypted)
 
 				// Convert clientAddr to a string
 				clientAddrStr := clientAddr.String()

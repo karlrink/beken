@@ -11,6 +11,7 @@ import Network
 import CryptoKit
 import Foundation
 
+let appVersion = "0.0.0"
 
 struct ContentView: View {
     
@@ -70,15 +71,21 @@ struct ButtonView: View {
     
     @State private var isDataSent: Bool = false
     @State private var outputMessage: String = ""
+    
+    // Create an instance of NetworkManager
+    @StateObject public var networkManager = NetworkManager()
+
 
     var body: some View {
         VStack {
-            Text("Landing Page")
+            Text("Beken")
                 .font(.largeTitle)
                 .padding()
 
             Button(action: {
-                sendUDPData()
+                sendUDPDataV1()
+                // Call sendUDPData on the networkManager instance
+                //networkManager.sendUDPData(nameStr: nameStr, keyStr: keyStr)
             }) {
                 Text("Send UDP Packet")
                     .font(.headline)
@@ -90,7 +97,7 @@ struct ButtonView: View {
             .padding()
 
             if isDataSent {
-                Text("Data has been sent to \(serverAddress):\(serverPort)")
+                Text("Data sent to \(serverAddress):\(serverPort)")
                     .foregroundColor(.green)
                     .font(.headline)
                     .padding()
@@ -103,24 +110,34 @@ struct ButtonView: View {
                     .padding()
                     .foregroundColor(outputMessage == "fail" ? .red : .green)
             }
+            
+            // Display the appVersion
+            Text("Version: \(appVersion)")
+                .font(.caption)
+                .foregroundColor(.gray)
+                .padding(.top, 20)
+            
+            
         }
         .navigationBarBackButtonHidden(true)
         .navigationBarHidden(true)
         .onAppear {
-            setupUDPConnection()
+            setupUDPConnectionV1()
+            // Call setupUDPConnection on the networkManager instance
+            //networkManager.setupUDPConnection(serverAddress: serverAddress, serverPort: serverPort)
         }
     }
 
-    func setupUDPConnection() {
+    
+     
+    func setupUDPConnectionV1() {
         connection = NWConnection(
             host: NWEndpoint.Host(serverAddress),
             port: NWEndpoint.Port(serverPort)!, using: .udp
         )
     }
-    
-  
-
-    func sendUDPData() {
+     
+    func sendUDPDataV1() {
         self.outputMessage = "fail"
          
          let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -154,7 +171,7 @@ struct ButtonView: View {
             
             //if let data = messageTrim.data(using: .utf8) {
             if let data = message.data(using: .utf8) {
-                send(data: data)
+                sendV1(data: data)
             } else {
                 print("Failed to convert message to data")
             }
@@ -164,7 +181,7 @@ struct ButtonView: View {
     }
 
 
-    func send(data: Data) {
+    func sendV1(data: Data) {
         connection?.stateUpdateHandler = { state in
             switch state {
             case .ready:
@@ -220,5 +237,6 @@ struct ButtonView: View {
 
         connection?.start(queue: .global())
     }
+ 
 
 }
