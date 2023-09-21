@@ -9,7 +9,7 @@ import Network
 import CryptoKit
 import Foundation
 
-class NetworkManager: ObservableObject {
+class NetworkManager2: ObservableObject {
     @Published var outputMessage: String = ""
     @Published var isDataSent: Bool = false
 

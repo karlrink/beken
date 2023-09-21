@@ -8,7 +8,7 @@
 import SwiftUI
 import Network
 
-import CryptoKit
+//import CryptoKit
 import Foundation
 
 let appVersion = "0.0.0"
@@ -17,33 +17,94 @@ struct ContentView: View {
     
     @AppStorage("serverAddress") private var serverAddress: String = ""
     @AppStorage("serverPort") private var serverPort: String = ""
+    
+    //@AppStorage("serverAndPortInput") private var serverAndPortInput: String = ""
+    
     @AppStorage("nameStr") private var nameStr: String = ""
     @AppStorage("keyStr") private var keyStr: String = ""
+    
+    //@State private var serverAndPortInput: String = ""
+    
+    /*
+    private var serverAndPort: String {
+        get {
+            "\(serverAddress):\(serverPort)"
+        }
+        set {
+            let components = newValue.split(separator: ":")
+            if let address = components.first {
+                serverAddress = String(address)
+            }
+            if let port = components.last {
+                serverPort = String(port)
+            }
+        }
+    }
+     */
 
+    @State private var isServerAddressValid: Bool = true
+    
     var body: some View {
         NavigationView {
             VStack {
-                Text("Enter Server Information")
+                //Text("Enter Server Information")
+                Text("Beken Information")
                     .font(.largeTitle)
                     .padding()
 
                 TextField("Server Address", text: $serverAddress)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
+                
+                /*
+                TextField("Server Address", text: $serverAddress)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .padding()
+                    .onChange(of: serverAddress) { newValue in
+                        // Check if the server address is empty
+                        isServerAddressValid = !newValue.isEmpty
+                    }
+                    .background(isServerAddressValid ? Color.clear : Color.red.opacity(0.3))
+                    .cornerRadius(5)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(isServerAddressValid ? Color.clear : Color.red, lineWidth: 1)
+                    )
+
+                if !isServerAddressValid {
+                    Text("Server Address cannot be empty")
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                        .padding(.top, 4)
+                }
+                */
+
+                
 
                 TextField("Server Port", text: $serverPort)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.numberPad)
                     .padding()
                 
+                //TextField("Server:Port", text: $serverAndPortInput)
+                //     .textFieldStyle(RoundedBorderTextFieldStyle())
+                //     .padding()
+
+                
                 TextField("Name", text: $nameStr)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
 
-                TextField("Key", text: $keyStr)
+                //TextField("Key", text: $keyStr)
+                //    .textFieldStyle(RoundedBorderTextFieldStyle())
+                //    .keyboardType(.numberPad)
+                //    .padding()
+                
+                SecureField("Key", text: $keyStr)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.numberPad)
                     .padding()
+
 
 
                 NavigationLink(destination: ButtonView(serverAddress: $serverAddress,serverPort: $serverPort, nameStr: $nameStr, keyStr: $keyStr)) {
@@ -53,7 +114,16 @@ struct ContentView: View {
                         .padding()
                         .background(Color.blue)
                         .cornerRadius(10)
-                }.padding()
+                }
+                .padding()
+                .disabled(serverAddress.isEmpty || serverPort.isEmpty || nameStr.isEmpty || keyStr.isEmpty)
+                
+                // Display the appVersion
+                Text("Version: \(appVersion)")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                    .padding(.top, 20)
+                
             }
         }
     }
@@ -73,21 +143,22 @@ struct ButtonView: View {
     @State private var outputMessage: String = ""
     
     // Create an instance of NetworkManager
-    @StateObject public var networkManager = NetworkManager()
+    //@StateObject private var networkManager = NetworkManager()
 
 
     var body: some View {
         VStack {
-            Text("Beken")
-                .font(.largeTitle)
-                .padding()
+            //Text("Beken")
+            //    .font(.largeTitle)
+            //    .padding()
 
             Button(action: {
                 sendUDPDataV1()
                 // Call sendUDPData on the networkManager instance
                 //networkManager.sendUDPData(nameStr: nameStr, keyStr: keyStr)
             }) {
-                Text("Send UDP Packet")
+                //Text("Send UDP Packet")
+                Text("Beken")
                     .font(.headline)
                     .foregroundColor(.black)
                     .padding()
@@ -97,7 +168,8 @@ struct ButtonView: View {
             .padding()
 
             if isDataSent {
-                Text("Data sent to \(serverAddress):\(serverPort)")
+                //Text("Data sent to \(serverAddress):\(serverPort)")
+                Text("\(serverAddress):\(serverPort)")
                     .foregroundColor(.green)
                     .font(.headline)
                     .padding()
@@ -131,9 +203,17 @@ struct ButtonView: View {
     //-------
      
     func setupUDPConnectionV1() {
+        
+        guard let portNumber = UInt16(serverPort) else {
+            // Handle the case where serverPort is not a valid port number
+            print("Invalid serverPort: \(serverPort)")
+            return
+        }
+        
         connection = NWConnection(
             host: NWEndpoint.Host(serverAddress),
-            port: NWEndpoint.Port(serverPort)!, using: .udp
+            port: NWEndpoint.Port(rawValue: portNumber)!,
+            using: .udp
         )
     }
      
