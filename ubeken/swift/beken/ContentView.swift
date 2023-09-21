@@ -17,32 +17,8 @@ struct ContentView: View {
     
     @AppStorage("serverAddress") private var serverAddress: String = ""
     @AppStorage("serverPort") private var serverPort: String = ""
-    
-    //@AppStorage("serverAndPortInput") private var serverAndPortInput: String = ""
-    
     @AppStorage("nameStr") private var nameStr: String = ""
     @AppStorage("keyStr") private var keyStr: String = ""
-    
-    //@State private var serverAndPortInput: String = ""
-    
-    /*
-    private var serverAndPort: String {
-        get {
-            "\(serverAddress):\(serverPort)"
-        }
-        set {
-            let components = newValue.split(separator: ":")
-            if let address = components.first {
-                serverAddress = String(address)
-            }
-            if let port = components.last {
-                serverPort = String(port)
-            }
-        }
-    }
-     */
-
-    @State private var isServerAddressValid: Bool = true
     
     var body: some View {
         NavigationView {
@@ -56,56 +32,19 @@ struct ContentView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
                 
-                /*
-                TextField("Server Address", text: $serverAddress)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
-                    .onChange(of: serverAddress) { newValue in
-                        // Check if the server address is empty
-                        isServerAddressValid = !newValue.isEmpty
-                    }
-                    .background(isServerAddressValid ? Color.clear : Color.red.opacity(0.3))
-                    .cornerRadius(5)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(isServerAddressValid ? Color.clear : Color.red, lineWidth: 1)
-                    )
-
-                if !isServerAddressValid {
-                    Text("Server Address cannot be empty")
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                        .padding(.top, 4)
-                }
-                */
-
-                
-
                 TextField("Server Port", text: $serverPort)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.numberPad)
                     .padding()
                 
-                //TextField("Server:Port", text: $serverAndPortInput)
-                //     .textFieldStyle(RoundedBorderTextFieldStyle())
-                //     .padding()
-
-                
                 TextField("Name", text: $nameStr)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
 
-                //TextField("Key", text: $keyStr)
-                //    .textFieldStyle(RoundedBorderTextFieldStyle())
-                //    .keyboardType(.numberPad)
-                //    .padding()
-                
                 SecureField("Key", text: $keyStr)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .keyboardType(.numberPad)
                     .padding()
-
-
 
                 NavigationLink(destination: ButtonView(serverAddress: $serverAddress,serverPort: $serverPort, nameStr: $nameStr, keyStr: $keyStr)) {
                     Text("Continue")
@@ -130,34 +69,34 @@ struct ContentView: View {
     
 }
 
+
 struct ButtonView: View {
-    
-    @State var connection: NWConnection?
     
     @Binding var serverAddress: String
     @Binding var serverPort: String
     @Binding var nameStr: String
     @Binding var keyStr: String
     
+    @State var connection: NWConnection?
+    
     @State private var isDataSent: Bool = false
     @State private var outputMessage: String = ""
     
-    // Create an instance of NetworkManager
-    //@StateObject private var networkManager = NetworkManager()
-
-
     var body: some View {
         VStack {
-            //Text("Beken")
-            //    .font(.largeTitle)
-            //    .padding()
+            
+            if isDataSent {
+                Text("\(serverAddress):\(serverPort)")
+                    .foregroundColor(.green)
+                    .font(.headline)
+                    .padding()
+            }
 
             Button(action: {
+                
                 sendUDPDataV1()
-                // Call sendUDPData on the networkManager instance
-                //networkManager.sendUDPData(nameStr: nameStr, keyStr: keyStr)
+
             }) {
-                //Text("Send UDP Packet")
                 Text("Beken")
                     .font(.headline)
                     .foregroundColor(.black)
@@ -166,15 +105,7 @@ struct ButtonView: View {
                     .cornerRadius(10)
             }
             .padding()
-
-            if isDataSent {
-                //Text("Data sent to \(serverAddress):\(serverPort)")
-                Text("\(serverAddress):\(serverPort)")
-                    .foregroundColor(.green)
-                    .font(.headline)
-                    .padding()
-            }
-
+            
             if !outputMessage.isEmpty {
                 Text(outputMessage)
                     //.foregroundColor(.red)
@@ -191,16 +122,14 @@ struct ButtonView: View {
             
             
         }
-        .navigationBarBackButtonHidden(true)
-        .navigationBarHidden(true)
+        .navigationBarBackButtonHidden(false)
+        .navigationBarHidden(false)
         .onAppear {
+            
             setupUDPConnectionV1()
-            // Call setupUDPConnection on the networkManager instance
-            //networkManager.setupUDPConnection(serverAddress: serverAddress, serverPort: serverPort)
+
         }
     }
-
-    //-------
      
     func setupUDPConnectionV1() {
         
@@ -220,16 +149,11 @@ struct ButtonView: View {
     func sendUDPDataV1() {
         self.outputMessage = "fail"
          
-         let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
-         print(trimmedKeyStr)
+        let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
+        //print(trimmedKeyStr)
        
-         //let nonce = "nonce"
-         
-        //let key = SymmetricKey(size: .bits256) // You can choose the key size you prefer.
-        //let cryptoManager = CryptoManager(symmetricKey: key)
         let cryptoManager = CryptoManager(symmetricKeyStr: trimmedKeyStr)
 
-        
         do {
             
             let dateFormatter = DateFormatter()
@@ -246,10 +170,9 @@ struct ButtonView: View {
             //let message = "\(nameStr) X \(encryptedMessageXOR)"
             
             //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
-            print(message)
+            //print(message)
             //print(messageTrim)
             
-            //if let data = messageTrim.data(using: .utf8) {
             if let data = message.data(using: .utf8) {
                 sendV1(data: data)
             } else {
@@ -259,7 +182,6 @@ struct ButtonView: View {
             print("Encryption error: \(error)")
         }
     }
-
 
     func sendV1(data: Data) {
         connection?.stateUpdateHandler = { state in
@@ -318,5 +240,4 @@ struct ButtonView: View {
         connection?.start(queue: .global())
     }
  
-
 }
