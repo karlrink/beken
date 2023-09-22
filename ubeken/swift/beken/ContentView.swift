@@ -24,7 +24,7 @@ struct ContentView: View {
         NavigationView {
             VStack {
                 //Text("Enter Server Information")
-                Text("Beken Information")
+                Text("Beken")
                     .font(.largeTitle)
                     .padding()
 
