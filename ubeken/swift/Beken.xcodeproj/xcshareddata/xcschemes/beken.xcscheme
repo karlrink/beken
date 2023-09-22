@@ -17,7 +17,7 @@
                BlueprintIdentifier = "2EF708B52AB25EB200102498"
                BuildableName = "Beken.app"
                BlueprintName = "Beken"
-               ReferencedContainer = "container:beken.xcodeproj">
+               ReferencedContainer = "container:Beken.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -46,7 +46,7 @@
             BlueprintIdentifier = "2EF708B52AB25EB200102498"
             BuildableName = "Beken.app"
             BlueprintName = "Beken"
-            ReferencedContainer = "container:beken.xcodeproj">
+            ReferencedContainer = "container:Beken.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -63,7 +63,7 @@
             BlueprintIdentifier = "2EF708B52AB25EB200102498"
             BuildableName = "Beken.app"
             BlueprintName = "Beken"
-            ReferencedContainer = "container:beken.xcodeproj">
+            ReferencedContainer = "container:Beken.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
