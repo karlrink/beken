@@ -22,7 +22,7 @@ import (
 	"ubeken/kes"
 )
 
-var version = "1.0.0.🍁-2023-09-20"
+var version = "1.0.0.🍁-2023-09-22"
 
 func usage() {
 
@@ -150,7 +150,8 @@ func main() {
 					}
 
 					// Send a response back to the client
-					response := "beken 0"
+					//response := "beken 0"
+					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
@@ -169,7 +170,8 @@ func main() {
 					}
 
 					// Send a response back to the client
-					response := "beken 1"
+					//response := "beken 1"
+					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
@@ -187,7 +189,8 @@ func main() {
 						log.Printf("Isert IP %s \n", host)
 					}
 					// Send a response back to the client
-					response := "beken 2"
+					//response := "beken 2"
+					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
@@ -205,7 +208,8 @@ func main() {
 						log.Printf("Isert IP %s \n", host)
 					}
 					// Send a response back to the client
-					response := "beken 3"
+					//response := "beken 3"
+					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
@@ -224,7 +228,8 @@ func main() {
 					}
 
 					// Send a response back to the client
-					response := "beken X"
+					//response := "beken X"
+					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
@@ -243,7 +248,8 @@ func main() {
 					}
 
 					// Send a response back to the client
-					response := "beken aes128"
+					//response := "beken aes128"
+					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
@@ -611,7 +617,7 @@ func decryptAESGCM(base64Cipher, base64Nonce, base64Tag, keyStr string) (string,
 	}
 
 	// Convert the plaintext to a string and print it
-	log.Println("Decrypted Text:", string(plainText))
+	//log.Println("Decrypted Text:", string(plainText))
 
 	return string(plainText), nil
 }
@@ -651,7 +657,7 @@ func decryptAES128(base64Cipher, keyStr string) (string, error) {
 
 	// Convert the plaintext to a string and return it
 	decryptedStr := string(decryptedText)
-	log.Println("Decrypted Text:", decryptedStr)
+	//log.Println("Decrypted Text:", decryptedStr)
 
 	return decryptedStr, nil
 }
