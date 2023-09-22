@@ -188,6 +188,7 @@ struct ButtonView: View {
                 
                 connection?.receiveMessage { data, _, _, error in
                     
+                    /*
                     if let error = error {
                         print("Failed to receive data: \(error)")
                         DispatchQueue.main.async {
@@ -195,6 +196,7 @@ struct ButtonView: View {
                         }
                         return
                     }
+                     */
                     
                     if let data = data, let message = String(data: data, encoding: .utf8) {
                         DispatchQueue.main.async {
@@ -205,6 +207,7 @@ struct ButtonView: View {
                     
                 }
                 
+            /*
             case .failed(let error):
                 if (error as NSError).code == 61 {
                     DispatchQueue.main.async {
@@ -216,9 +219,11 @@ struct ButtonView: View {
                         self.outputMessage = "Connection failed: \(error.localizedDescription)"
                     }
                 }
+             */
             default:
                 break
             }
+             
         }
 
         connection?.start(queue: .global())
