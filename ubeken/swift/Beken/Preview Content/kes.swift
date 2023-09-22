@@ -6,7 +6,6 @@
 //
 
 import Foundation
-//import Crypto
 
 func xorEncrypt(plaintext: String, key: String) -> String {
     let plaintextBytes = Array(plaintext.utf8)

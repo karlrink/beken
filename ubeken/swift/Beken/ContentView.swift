@@ -11,7 +11,7 @@ import Network
 //import CryptoKit
 import Foundation
 
-let appVersion = "0.0.0"
+let appVersion = "1.0.0"
 
 struct ContentView: View {
     
@@ -43,7 +43,7 @@ struct ContentView: View {
 
                 SecureField("Key", text: $keyStr)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .keyboardType(.numberPad)
+                    .keyboardType(.alphabet)  // Allow both numbers and characters
                     .padding()
 
                 NavigationLink(destination: ButtonView(serverAddress: $serverAddress,serverPort: $serverPort, nameStr: $nameStr, keyStr: $keyStr)) {
@@ -94,7 +94,7 @@ struct ButtonView: View {
 
             Button(action: {
                 
-                sendUDPDataV1()
+                sendPacket()
 
             }) {
                 Text("Beken")
@@ -114,24 +114,17 @@ struct ButtonView: View {
                     .foregroundColor(outputMessage == "fail" ? .red : .green)
             }
             
-            // Display the appVersion
-            Text("Version: \(appVersion)")
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.top, 20)
-            
-            
         }
         .navigationBarBackButtonHidden(false)
         .navigationBarHidden(false)
         .onAppear {
             
-            setupUDPConnectionV1()
+            setupConnection()
 
         }
     }
      
-    func setupUDPConnectionV1() {
+    func setupConnection() {
         
         guard let portNumber = UInt16(serverPort) else {
             // Handle the case where serverPort is not a valid port number
@@ -146,7 +139,7 @@ struct ButtonView: View {
         )
     }
      
-    func sendUDPDataV1() {
+    func sendPacket() {
         self.outputMessage = "fail"
          
         let trimmedKeyStr = keyStr.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -160,21 +153,12 @@ struct ButtonView: View {
             dateFormatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
             let timestamp = dateFormatter.string(from: Date())
 
-            
-            let plainText = "Beken packet AES128 " + timestamp
-            let encryptedMessageAES = try cryptoManager.encryptAES(plaintext: plainText)
-            let message = "\(nameStr) A1 \(encryptedMessageAES)"
-            
-            //let plainText = "Beken packet XOR " + timestamp
-            //let encryptedMessageXOR = try cryptoManager.encryptXOR(plaintext: plainText)
-            //let message = "\(nameStr) X \(encryptedMessageXOR)"
-            
-            //let messageTrim = message.trimmingCharacters(in: .whitespacesAndNewlines)
-            //print(message)
-            //print(messageTrim)
+            let plainText = "Beken " + timestamp
+            let encryptedMessage = try cryptoManager.encryptAES(plaintext: plainText)
+            let message = "\(nameStr) A1 \(encryptedMessage)"
             
             if let data = message.data(using: .utf8) {
-                sendV1(data: data)
+                sendUDP(data: data)
             } else {
                 print("Failed to convert message to data")
             }
@@ -183,7 +167,7 @@ struct ButtonView: View {
         }
     }
 
-    func sendV1(data: Data) {
+    func sendUDP(data: Data) {
         connection?.stateUpdateHandler = { state in
             switch state {
             case .ready:

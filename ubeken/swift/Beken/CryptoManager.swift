@@ -26,8 +26,11 @@ class CryptoManager {
 
 
     func encryptAES(plaintext: String) throws -> String {
-        let Encrypted = encryptAESString(plaintext, key: symmetricKeyStr)
-        return Encrypted!.base64EncodedString()
+        if let encrypted = encryptAESString(plaintext, key: symmetricKeyStr) {
+            return encrypted.base64EncodedString()
+        } else {
+            throw EncryptionError.encryptionFailed
+        }
     }
 
     func decryptAES(encryptedString: String) throws -> String {
@@ -51,6 +54,10 @@ class CryptoManager {
     enum DecryptionError: Error {
         case invalidBase64
         case invalidDecryptedData
+    }
+    
+    enum EncryptionError: Error {
+        case encryptionFailed
     }
 
     
