@@ -19,6 +19,14 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import android.content.SharedPreferences
+
+import android.preference.PreferenceManager
+import android.text.Editable
+import android.text.TextWatcher
+
+
+
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,16 +36,66 @@ class MainActivity : AppCompatActivity() {
     private lateinit var editTextServerPort: EditText
     private lateinit var buttonSend: Button
 
+    private lateinit var sharedPreferences: SharedPreferences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
 
         editTextKey = findViewById(R.id.editTextKey)
         editTextName = findViewById(R.id.editTextName)
         editTextServerName = findViewById(R.id.editTextServerName)
         editTextServerPort = findViewById(R.id.editTextServerPort)
         buttonSend = findViewById(R.id.buttonSend)
+
+        // Load the saved values from SharedPreferences
+        editTextKey.setText(sharedPreferences.getString("key", ""))
+        editTextName.setText(sharedPreferences.getString("name", ""))
+        editTextServerName.setText(sharedPreferences.getString("serverName", ""))
+        editTextServerPort.setText(sharedPreferences.getString("serverPort", ""))
+
+        // Add TextWatchers to EditText fields to save input as it changes
+        editTextKey.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                sharedPreferences.edit().putString("key", s.toString()).apply()
+            }
+
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        editTextName.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                sharedPreferences.edit().putString("name", s.toString()).apply()
+            }
+
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        editTextServerName.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                sharedPreferences.edit().putString("serverName", s.toString()).apply()
+            }
+
+            override fun afterTextChanged(s: Editable?) {}
+        })
+
+        editTextServerPort.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                sharedPreferences.edit().putString("serverPort", s.toString()).apply()
+            }
+
+            override fun afterTextChanged(s: Editable?) {}
+        })
 
         buttonSend.setOnClickListener {
 
@@ -54,6 +112,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
 
     private fun sendUdpPacket(userName: String, userKey: String, serverName: String, serverPort: Int) {
         // Use a coroutine to perform the network operation on a background thread
