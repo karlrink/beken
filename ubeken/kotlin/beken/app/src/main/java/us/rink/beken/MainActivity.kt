@@ -1,15 +1,24 @@
 package us.rink.beken
 
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import us.rink.beken.R.layout.activity_main
+import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.SocketException
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 
 class MainActivity : AppCompatActivity() {
     private lateinit var editTextName: EditText
@@ -19,7 +28,6 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        //setContentView(activity_main)
         setContentView(R.layout.activity_main)
 
 
@@ -43,6 +51,58 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendUdpPacket(userName: String, serverName: String, serverPort: Int) {
+        // Use a coroutine to perform the network operation on a background thread
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val udpSocket = DatagramSocket()
+                val serverAddress = InetAddress.getByName(serverName)
+                val message = "Hello Android $userName"
+                val sendData = message.toByteArray()
+                val packet = DatagramPacket(sendData, sendData.size, serverAddress, serverPort)
+                udpSocket.send(packet)
+                udpSocket.close()
+
+                // Update the UI on the main thread (optional)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "UDP packet sent!", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                // Handle any exceptions here (optional)
+                e.printStackTrace()
+
+                // Update the UI on the main thread with the error message (optional)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Error sending UDP packet: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+
+
+    private fun sendUdpPacket_A2(userName: String, serverName: String, serverPort: Int) {
+        try {
+            val udpSocket = DatagramSocket()
+            val serverAddress = InetAddress.getByName(serverName)
+            val message = "Hello Android $userName"
+            val sendData = message.toByteArray()
+            val packet = DatagramPacket(sendData, sendData.size, serverAddress, serverPort)
+            udpSocket.send(packet)
+            udpSocket.close()
+            Toast.makeText(this, "UDP packet sent!", Toast.LENGTH_SHORT).show()
+        } catch (e: SocketException) {
+            Log.e("UDP_SEND", "SocketException: ${e.message}")
+            Toast.makeText(this, "SocketException: ${e.message}", Toast.LENGTH_SHORT).show()
+        } catch (e: IOException) {
+            Log.e("UDP_SEND", "IOException: ${e.message}")
+            Toast.makeText(this, "IOException: ${e.message}", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("UDP_SEND", "Error sending UDP packet", e)
+            Toast.makeText(this, "Error sending UDP packet: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun sendUdpPacket_V1(userName: String, serverName: String, serverPort: Int) {
         try {
             val udpSocket = DatagramSocket()
             val serverAddress = InetAddress.getByName(serverName)
