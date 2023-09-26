@@ -21,6 +21,8 @@ import kotlinx.coroutines.withContext
 
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var editTextKey: EditText
     private lateinit var editTextName: EditText
     private lateinit var editTextServerName: EditText
     private lateinit var editTextServerPort: EditText
@@ -31,32 +33,35 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
 
+        editTextKey = findViewById(R.id.editTextKey)
         editTextName = findViewById(R.id.editTextName)
         editTextServerName = findViewById(R.id.editTextServerName)
         editTextServerPort = findViewById(R.id.editTextServerPort)
         buttonSend = findViewById(R.id.buttonSend)
 
         buttonSend.setOnClickListener {
+
+            val userKey = editTextKey.text.toString()
             val userName = editTextName.text.toString()
             val serverName = editTextServerName.text.toString()
             val serverPortStr = editTextServerPort.text.toString()
 
-            if (userName.isNotBlank() && serverName.isNotBlank() && serverPortStr.isNotBlank()) {
+            if (userName.isNotBlank() && serverName.isNotBlank() && serverPortStr.isNotBlank() && userKey.isNotBlank()) {
                 val serverPort = serverPortStr.toInt()
-                sendUdpPacket(userName, serverName, serverPort)
+                sendUdpPacket(userName, userKey, serverName, serverPort)
             } else {
                 Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun sendUdpPacket(userName: String, serverName: String, serverPort: Int) {
+    private fun sendUdpPacket(userName: String, userKey: String, serverName: String, serverPort: Int) {
         // Use a coroutine to perform the network operation on a background thread
         GlobalScope.launch(Dispatchers.IO) {
             try {
                 val udpSocket = DatagramSocket()
                 val serverAddress = InetAddress.getByName(serverName)
-                val message = "Hello Android $userName"
+                val message = "Hello Android $userName $userKey"
                 val sendData = message.toByteArray()
                 val packet = DatagramPacket(sendData, sendData.size, serverAddress, serverPort)
                 udpSocket.send(packet)
