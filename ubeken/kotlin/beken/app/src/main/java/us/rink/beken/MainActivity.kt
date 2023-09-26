@@ -19,7 +19,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(activity_main)
+        //setContentView(activity_main)
+        setContentView(R.layout.activity_main)
+
 
         editTextName = findViewById(R.id.editTextName)
         editTextServerName = findViewById(R.id.editTextServerName)
