@@ -496,7 +496,7 @@ func createTables(db *sql.DB) error {
 	}
 
 	sql = `CREATE TABLE IF NOT EXISTS procs (
-        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Name" TEXT,
         "Data" TEXT,
         "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
 	_, err = db.Exec(sql)
