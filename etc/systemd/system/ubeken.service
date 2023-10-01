@@ -1,0 +1,14 @@
+[Unit]
+Description=ubeken service
+After=network.target
+
+[Service]
+Type=simple
+User=ubeken
+Group=beken
+WorkingDirectory=/opt/beken-touer/ubeken
+Environment="PATH=/opt/beken-touer/ubeken:/usr/bin:/usr/sbin:/bin:/sbin"
+ExecStart=/opt/beken-touer/ubeken/ubeken /opt/beken-touer/data/ubeken.db 9480 &
+
+[Install]
+WantedBy=multi-user.target
