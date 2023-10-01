@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 	"ubeken/kes"
 )
 
-var version = "1.0.0.🍁-2023-09-22"
+var version = "1.0.0.🍁-2023-09-30"
 
 func usage() {
 
@@ -108,7 +109,7 @@ func main() {
 		// Read data from the connection
 		n, addr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
-			log.Println("Error reading from UDP connection:", err)
+			log.Println("Error reading from UDP connection: %v\n", err)
 			continue
 		}
 
@@ -117,26 +118,33 @@ func main() {
 		// Process each packet in a Goroutine
 		go func(data string, clientAddr *net.UDPAddr) {
 
+			// Convert clientAddr to a string
+			clientAddrStr := clientAddr.String()
+
+			// Remove the port from the IP address
+			host, _, err := net.SplitHostPort(clientAddrStr) // works for IPv4 and IPv6 addresses
+			if err != nil {
+				log.Printf("Failed to split host and port: %v\n", err)
+			}
+			log.Println("UDP connection " + host)
+
+			str := strings.Split(data, " ")
+			field1 := str[0] //name
+			field2 := str[1] //code
+			//field3 := str[2] //cypher
+
+			switch field1 {
+			case "PUBLIC_KEY", "RSA_PUBLIC_KEY":
+				PrintDebug("PUBLIC_KEY request")
+				return
+			}
+
 			exists, decrypted := existsAndDecrypts(db, data)
 
 			if exists {
 
 				PrintDebug(data)
 				PrintDebug("decrypted: " + decrypted)
-
-				// Convert clientAddr to a string
-				clientAddrStr := clientAddr.String()
-
-				// Remove the port from the IP address
-				host, _, err := net.SplitHostPort(clientAddrStr) // works for IPv4 and IPv6 addresses
-				if err != nil {
-					log.Printf("Failed to split host and port: %v\n", err)
-				}
-
-				str := strings.Split(data, " ")
-				field1 := str[0] //name
-				field2 := str[1] //code
-				//field3 := str[2] //cypher
 
 				switch field2 {
 				case "0": //kes
@@ -146,7 +154,7 @@ func main() {
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
-						log.Printf("Isert IP %s \n", host)
+						log.Printf("Isert IP " + host)
 					}
 
 					// Send a response back to the client
@@ -157,7 +165,7 @@ func main() {
 					if err_response != nil {
 						log.Println("Error sending response to client:", err_response)
 					}
-					log.Println("Sent response %s", clientAddr.String())
+					log.Println("Sent response " + host)
 
 				case "1": //rsa
 
@@ -166,18 +174,17 @@ func main() {
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
-						log.Printf("Isert IP %s \n", host)
+						log.Printf("Isert IP " + host)
 					}
 
 					// Send a response back to the client
-					//response := "beken 1"
 					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
-					log.Println("Sent response %s", clientAddr.String())
+					log.Println("Sent response " + host)
 
 				case "2": //fernet
 
@@ -186,17 +193,16 @@ func main() {
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
-						log.Printf("Isert IP %s \n", host)
+						log.Println("Isert IP " + host)
 					}
 					// Send a response back to the client
-					//response := "beken 2"
 					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
-					log.Println("Sent response %s", clientAddr.String())
+					log.Println("Sent response " + host)
 
 				case "3": //aes
 
@@ -205,17 +211,16 @@ func main() {
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
-						log.Printf("Isert IP %s \n", host)
+						log.Println("Isert IP " + host)
 					}
 					// Send a response back to the client
-					//response := "beken 3"
 					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
 						log.Println("Error sending response to client:", err_response)
 					}
-					log.Println("Sent response %s", clientAddr.String())
+					log.Println("Sent response " + host)
 
 				case "X": //XOR
 
@@ -224,41 +229,54 @@ func main() {
 					if err != nil {
 						log.Printf("Failed to save IP to database: %v\n", err)
 					} else {
-						log.Printf("Isert IP %s \n", host)
+						log.Println("Isert IP " + host)
 					}
 
 					// Send a response back to the client
-					//response := "beken X"
 					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
 						log.Println("Error sending response to client:", err_response)
 					}
-					log.Println("Sent response %s", clientAddr.String())
+					log.Println("Sent response " + host)
 
 				case "A1": //aes128
 
+					// Verify decrypted
+					pattern := `^Beken`
+
+					// Compile the regular expression pattern
+					re := regexp.MustCompile(pattern)
+
+					// Use FindString to check if the string starts with "Beken"
+					if re.FindString(decrypted) != "Beken" {
+						log.Println("Failed decrypt Beken " + host)
+						return
+					}
+
+					var inDB string
 					// Save the IP to the database
 					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
 					if err != nil {
-						log.Printf("Failed to save IP to database: %v\n", err)
+						inDB = "True"
+						PrintDebugf("Failed to save IP to database: %v\n", err)
 					} else {
-						log.Printf("Isert IP %s \n", host)
+						inDB = "New"
+						PrintDebug("Isert IP " + host)
 					}
 
 					// Send a response back to the client
-					//response := "beken aes128"
-					response := host
+					response := host + " " + inDB
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
 						log.Println("Error sending response to client:", err_response)
 					}
-					log.Println("Sent response %s", clientAddr.String())
+					log.Println("Sent response " + host)
 
 				default:
-					log.Println("code not found: " + field2)
+					log.Println("code not found: " + field2 + " " + host)
 
 				}
 
@@ -273,6 +291,13 @@ func PrintDebug(message string) {
 	debugMode := os.Getenv("DEBUG")
 	if debugMode != "" {
 		fmt.Println(message)
+	}
+}
+
+func PrintDebugf(format string, err error) {
+	debugMode := os.Getenv("DEBUG")
+	if debugMode != "" {
+		fmt.Printf(format, err)
 	}
 }
 
@@ -317,7 +342,6 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error decrypt rsa:", err)
 			return false, ""
 		}
-		//fmt.Println("Decrypted:  ", decrypted)
 
 		return exists, decrypted
 
@@ -334,7 +358,6 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error decrypt fernet:", err)
 			return false, ""
 		}
-		//fmt.Println("Decrypted:  ", decrypted)
 
 		return exists, decrypted
 
@@ -357,7 +380,6 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error decrypt aes:", err)
 			return false, ""
 		}
-		//fmt.Println("Decrypted:  ", decrypted)
 
 		return exists, decrypted
 
@@ -378,7 +400,6 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error decrypt xor: empty")
 			return false, ""
 		}
-		//fmt.Println("Decrypted:  ", decrypted)
 
 		return exists, decrypted
 
@@ -401,12 +422,6 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		//if decrypted == "" {
-		//		log.Println("Error decrypt aes128: empty")
-		//		return false, ""
-		//	}
-		//fmt.Println("Decrypted:  ", decrypted)
-
 		return exists, decrypted
 
 	}
@@ -422,6 +437,15 @@ func createTables(db *sql.DB) error {
 		"Data" TEXT,
 		"Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
 	_, err := db.Exec(sql)
+	if err != nil {
+		return err
+	}
+
+	sql = `CREATE TABLE IF NOT EXISTS public_keys (
+        "Name" TEXT PRIMARY KEY NOT NULL,
+        "Data" TEXT,
+        "Timestamp" DATETIME DEFAULT CURRENT_TIMESTAMP);`
+	_, err = db.Exec(sql)
 	if err != nil {
 		return err
 	}
