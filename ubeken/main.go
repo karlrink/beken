@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +24,7 @@ import (
 	"ubeken/kes"
 )
 
-var version = "1.0.0.🍁-2023-09-30"
+var version = "1.0.0.🎃-2023-10-01"
 
 func usage() {
 
@@ -129,19 +130,45 @@ func main() {
 			log.Println("UDP connection " + host)
 
 			str := strings.Split(data, " ")
-			field1 := str[0] //name
-			field2 := str[1] //code
-			//field3 := str[2] //cypher
 
-			switch field1 {
-			case "PUBLIC_KEY", "RSA_PUBLIC_KEY":
-				PrintDebug("PUBLIC_KEY request")
+			fmt.Println(str)
+
+			//PrintDebug("Length " + string(len(str))) // empty
+			PrintDebug("Length " + strconv.Itoa(len(str)))
+
+			strLength := len(str)
+
+			if strLength == 1 {
+				//PrintDebug("one1")
+				switch str[0] {
+				case "PUBLIC_KEY", "RSA_PUBLIC_KEY":
+					log.Println("PUBLIC_KEY request " + host)
+					return
+				}
 				return
 			}
 
-			exists, decrypted := existsAndDecrypts(db, data)
+			if strLength == 2 {
+				log.Println("Insufficient element split " + host + " " + data)
+				return
+			}
+			//log.Println("Not found " + host + " " + data)
+			//return
 
-			if exists {
+			if strLength >= 3 {
+
+				//PrintDebug("hello.hello.hello")
+
+				field1 := str[0] //name
+				field2 := str[1] //code
+				//field3 := str[2] //cypher
+
+				exists, decrypted := existsAndDecrypts(db, data)
+
+				if !exists {
+					PrintDebug("Not ExistAndDecrypts")
+					return
+				}
 
 				PrintDebug(data)
 				PrintDebug("decrypted: " + decrypted)
@@ -158,12 +185,11 @@ func main() {
 					}
 
 					// Send a response back to the client
-					//response := "beken 0"
 					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
@@ -218,7 +244,7 @@ func main() {
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
@@ -237,7 +263,7 @@ func main() {
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
@@ -271,18 +297,42 @@ func main() {
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
+					}
+					log.Println("Sent response " + host)
+
+				case "AN1": //android
+
+					// Save the IP to the database
+					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
+					if err != nil {
+						log.Printf("Failed to save IP to database: %v\n", err)
+					} else {
+						log.Println("Isert IP " + host)
+					}
+
+					// Send a response back to the client
+					response := host + " android plus"
+
+					// Send a response back to the client
+					//response := "hello Android testing"
+
+					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
+					if err_response != nil {
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
 				default:
 					log.Println("code not found: " + field2 + " " + host)
+					return
 
 				}
 
-			} else {
-				log.Println("Does not exist in the database:", data)
 			}
+			log.Println("Does not exist in the database " + host + " " + data)
+			return
+
 		}(receivedData, addr)
 	}
 }
@@ -307,6 +357,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 	var key string
 
 	str := strings.Split(dataStr, " ")
+
 	field1 := str[0] //name
 	field2 := str[1] //code
 	field3 := str[2] //cypher
@@ -327,7 +378,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		return exists, decrypted
+		return true, decrypted
 
 	case "1": //rsa
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM private_keys WHERE Name = ?), Data FROM private_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
@@ -343,7 +394,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		return exists, decrypted
+		return true, decrypted
 
 	case "2": //fernet
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM fernet_keys WHERE Name = ?), Data FROM fernet_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
@@ -359,7 +410,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		return exists, decrypted
+		return true, decrypted
 
 	case "3": //aes gcm
 		//field1 := str[0] //name
@@ -418,7 +469,28 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 
 		decrypted, err := decryptAES128(field3, key)
 		if err != nil {
-			log.Println("Error decrypt aes128:", err)
+			log.Printf("Error decrypt aes128: %v\n", err)
+			return false, ""
+		}
+
+		return exists, decrypted
+
+	case "AN1":
+		//field1 := str[0] //name
+		//field2 := str[1] //code
+		//field3 := str[2] //cypher
+
+		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM ubeken_keys WHERE Name = ?), Data FROM ubeken_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
+		if err_query != nil {
+			log.Println("Error QueryRow database:", err_query)
+			return false, ""
+		}
+		PrintDebug("Exists in db: " + field1)
+
+		//decrypted := kes.XorDecrypt(field3, key)
+		decrypted := "This is android"
+		if decrypted == "" {
+			log.Println("Error decrypt: empty")
 			return false, ""
 		}
 

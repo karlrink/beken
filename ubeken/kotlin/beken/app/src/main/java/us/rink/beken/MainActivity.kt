@@ -132,7 +132,11 @@ class MainActivity : AppCompatActivity() {
             try {
                 val udpSocket = DatagramSocket()
                 val serverAddress = InetAddress.getByName(serverName)
-                val message = "Hello Android $userName $userKey"
+                //val message = "Hello Android $userName $userKey"
+                val message = "$userName AN1 XXXXXXXXXXXA1"
+                //val message = "PUBLIC_KEY"
+                //val message = "$userName $userKey"
+
                 val sendData = message.toByteArray()
                 val packet = DatagramPacket(sendData, sendData.size, serverAddress, serverPort)
                 udpSocket.send(packet)
