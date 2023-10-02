@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var sharedPreferences: SharedPreferences
 
-
+//    private lateinit var secretKey: SecretKey
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,16 +108,24 @@ class MainActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
 
+
+        // Generate a secret key
+        //secretKey = AESUtils.generateAESKey()
+
+
         buttonSend.setOnClickListener {
 
-            val userKey = editTextKey.text.toString()
+            val userKey = editTextKey.text.toString().trim()
             val userName = editTextName.text.toString()
             val serverName = editTextServerName.text.toString()
             val serverPortStr = editTextServerPort.text.toString()
 
             if (userName.isNotBlank() && serverName.isNotBlank() && serverPortStr.isNotBlank() && userKey.isNotBlank()) {
                 val serverPort = serverPortStr.toInt()
-                sendUdpPacket(userName, userKey, serverName, serverPort)
+                val messageToEncrypt = "Beken Android"
+                //val encryptedMessage = AESUtils.encrypt(messageToEncrypt, secretKey)
+                val encryptedMessage = AESUtils.encrypt(messageToEncrypt, userKey).trim()
+                sendUdpPacket(userName, encryptedMessage, serverName, serverPort)
             } else {
                 Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
             }
@@ -126,14 +134,14 @@ class MainActivity : AppCompatActivity() {
 
 
 
-    private fun sendUdpPacket(userName: String, userKey: String, serverName: String, serverPort: Int) {
+    private fun sendUdpPacket(userName: String, encryptedMessage: String, serverName: String, serverPort: Int) {
         // Use a coroutine to perform the network operation on a background thread
         GlobalScope.launch(Dispatchers.IO) {
             try {
                 val udpSocket = DatagramSocket()
                 val serverAddress = InetAddress.getByName(serverName)
                 //val message = "Hello Android $userName $userKey"
-                val message = "$userName AN1 XXXXXXXXXXXA1"
+                val message = "$userName AN1 $encryptedMessage"
                 //val message = "PUBLIC_KEY"
                 //val message = "$userName $userKey"
 
