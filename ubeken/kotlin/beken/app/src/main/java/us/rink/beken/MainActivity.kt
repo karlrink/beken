@@ -25,6 +25,8 @@ import android.preference.PreferenceManager
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class MainActivity : AppCompatActivity() {
 
@@ -115,16 +117,28 @@ class MainActivity : AppCompatActivity() {
 
         buttonSend.setOnClickListener {
 
-            val userKey = editTextKey.text.toString().trim()
+            //val userKey = editTextKey.text.toString().trim()
+            val userKey = editTextKey.text.toString().trimEnd()
             val userName = editTextName.text.toString()
             val serverName = editTextServerName.text.toString()
             val serverPortStr = editTextServerPort.text.toString()
 
             if (userName.isNotBlank() && serverName.isNotBlank() && serverPortStr.isNotBlank() && userKey.isNotBlank()) {
                 val serverPort = serverPortStr.toInt()
-                val messageToEncrypt = "Beken Android"
+
+                val timestamp = System.currentTimeMillis()
+                val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                val formattedDate = sdf.format(Date(timestamp))
+                //println(formattedDate) // Output: 2023-10-01 20:45:02
+
+                val messageToEncrypt = "Beken Android $formattedDate"
                 //val encryptedMessage = AESUtils.encrypt(messageToEncrypt, secretKey)
-                val encryptedMessage = AESUtils.encrypt(messageToEncrypt, userKey).trim()
+                //val encryptedMessage = AESUtils.encrypt(messageToEncrypt, userKey).trim()
+
+                //val encryptedMessage = KESUtils.xorEncrypt(messageToEncrypt, userKey)
+
+                val encryptedMessage = KESUtils.xorEncrypt(messageToEncrypt, userKey)
+
                 sendUdpPacket(userName, encryptedMessage, serverName, serverPort)
             } else {
                 Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
@@ -141,7 +155,7 @@ class MainActivity : AppCompatActivity() {
                 val udpSocket = DatagramSocket()
                 val serverAddress = InetAddress.getByName(serverName)
                 //val message = "Hello Android $userName $userKey"
-                val message = "$userName AN1 $encryptedMessage"
+                val message = "$userName X $encryptedMessage"
                 //val message = "PUBLIC_KEY"
                 //val message = "$userName $userKey"
 

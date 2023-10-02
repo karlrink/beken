@@ -343,8 +343,8 @@ func main() {
 				}
 
 			}
-			log.Println("Does not exist in the database " + host + " " + data)
-			return
+			//log.Println("Does not exist in the database " + host + " " + data)
+			//return
 
 		}(receivedData, addr)
 	}
@@ -457,7 +457,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error QueryRow database:", err_query)
 			return false, ""
 		}
-		PrintDebug("Exists in db: " + field1)
+		//PrintDebug("Exists in db: " + field1)
 
 		decrypted := kes.XorDecrypt(field3, key)
 		if decrypted == "" {
@@ -819,7 +819,15 @@ func decryptAES_128(base64Cipher, keyStr string) (string, error) {
 	decryptedText := make([]byte, len(cipherText))
 	decrypter.CryptBlocks(decryptedText, cipherText)
 
-	// Remove PKCS7 padding (if used during encryption)
+	/*
+		// Remove PKCS7 padding (if used during encryption)
+		padding := int(decryptedText[len(decryptedText)-1])
+		if padding > 0 && padding <= aes.BlockSize {
+			decryptedText = decryptedText[:len(decryptedText)-padding]
+		}
+	*/
+
+	// PKCS5Padding removal
 	padding := int(decryptedText[len(decryptedText)-1])
 	if padding > 0 && padding <= aes.BlockSize {
 		decryptedText = decryptedText[:len(decryptedText)-padding]

@@ -40,6 +40,7 @@ object AESUtils {
         cipher.init(Cipher.ENCRYPT_MODE, secretKey)
         val encryptedBytes = cipher.doFinal(text.toByteArray())
         return Base64.encodeToString(encryptedBytes, Base64.DEFAULT)
+        //return Base64.encodeToString(encryptedBytes, Base64.NO_WRAP)
     }
 
     fun decrypt(encryptedText: String, userKey: String): String {
