@@ -7,11 +7,13 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,7 +25,7 @@ import (
 	"ubeken/kes"
 )
 
-var version = "1.0.0.🍁-2023-09-30"
+var version = "1.0.0.🎃-2023-10-02"
 
 func usage() {
 
@@ -129,19 +131,45 @@ func main() {
 			log.Println("UDP connection " + host)
 
 			str := strings.Split(data, " ")
-			field1 := str[0] //name
-			field2 := str[1] //code
-			//field3 := str[2] //cypher
 
-			switch field1 {
-			case "PUBLIC_KEY", "RSA_PUBLIC_KEY":
-				PrintDebug("PUBLIC_KEY request")
+			fmt.Println(str)
+
+			//PrintDebug("Length " + string(len(str))) // empty
+			PrintDebug("Length " + strconv.Itoa(len(str)))
+
+			strLength := len(str)
+
+			if strLength == 1 {
+				//PrintDebug("one1")
+				switch str[0] {
+				case "PUBLIC_KEY", "RSA_PUBLIC_KEY":
+					log.Println("PUBLIC_KEY request " + host)
+					return
+				}
 				return
 			}
 
-			exists, decrypted := existsAndDecrypts(db, data)
+			if strLength == 2 {
+				log.Println("Insufficient element split " + host + " " + data)
+				return
+			}
+			//log.Println("Not found " + host + " " + data)
+			//return
 
-			if exists {
+			if strLength >= 3 {
+
+				//PrintDebug("hello.hello.hello")
+
+				field1 := str[0] //name
+				field2 := str[1] //code
+				//field3 := str[2] //cypher
+
+				exists, decrypted := existsAndDecrypts(db, data)
+
+				if !exists {
+					PrintDebug("Not ExistAndDecrypts")
+					return
+				}
 
 				PrintDebug(data)
 				PrintDebug("decrypted: " + decrypted)
@@ -158,12 +186,11 @@ func main() {
 					}
 
 					// Send a response back to the client
-					//response := "beken 0"
 					response := host
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
@@ -218,7 +245,7 @@ func main() {
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
@@ -237,7 +264,7 @@ func main() {
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
@@ -271,7 +298,7 @@ func main() {
 
 					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
 					if err_response != nil {
-						log.Println("Error sending response to client:", err_response)
+						log.Printf("Error sending response to client: %v\n", err_response)
 					}
 					log.Println("Sent response " + host)
 
@@ -280,9 +307,8 @@ func main() {
 
 				}
 
-			} else {
-				log.Println("Does not exist in the database:", data)
 			}
+
 		}(receivedData, addr)
 	}
 }
@@ -307,6 +333,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 	var key string
 
 	str := strings.Split(dataStr, " ")
+
 	field1 := str[0] //name
 	field2 := str[1] //code
 	field3 := str[2] //cypher
@@ -327,7 +354,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		return exists, decrypted
+		return true, decrypted
 
 	case "1": //rsa
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM private_keys WHERE Name = ?), Data FROM private_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
@@ -343,7 +370,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		return exists, decrypted
+		return true, decrypted
 
 	case "2": //fernet
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM fernet_keys WHERE Name = ?), Data FROM fernet_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
@@ -359,7 +386,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			return false, ""
 		}
 
-		return exists, decrypted
+		return true, decrypted
 
 	case "3": //aes gcm
 		//field1 := str[0] //name
@@ -393,7 +420,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 			log.Println("Error QueryRow database:", err_query)
 			return false, ""
 		}
-		PrintDebug("Exists in db: " + field1)
+		//PrintDebug("Exists in db: " + field1)
 
 		decrypted := kes.XorDecrypt(field3, key)
 		if decrypted == "" {
@@ -406,8 +433,8 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 	case "A1": //aes128
 		//field1 := str[0] //name
 		//field2 := str[1] //code
-		//field3 := str[2] //cypher
-		//field4 := str[3] //iv
+		//field3 := str[2] //cypher //AES/CBC/PKCS7Padding
+		//field4 := str[3] //iv     //fixed IV (all zero bytes)
 
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM aes_keys WHERE Name = ?), Data FROM aes_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 		if err_query != nil {
@@ -418,7 +445,7 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 
 		decrypted, err := decryptAES128(field3, key)
 		if err != nil {
-			log.Println("Error decrypt aes128:", err)
+			log.Printf("Error decrypt aes128: %v\n", err)
 			return false, ""
 		}
 
@@ -655,6 +682,7 @@ func decryptAESGCM(base64Cipher, base64Nonce, base64Tag, keyStr string) (string,
 	return string(plainText), nil
 }
 
+// Decrypts an AES-128 encrypted message using the provided base64 encoded ciphertext and key.
 func decryptAES128(base64Cipher, keyStr string) (string, error) {
 	// Decode the Base64 string to []byte
 	cipherText, err := base64.StdEncoding.DecodeString(base64Cipher)
@@ -664,6 +692,11 @@ func decryptAES128(base64Cipher, keyStr string) (string, error) {
 	}
 
 	key := []byte(keyStr)
+
+	// Check if the key size is valid for AES-128 (16 bytes)
+	if len(key) != 16 {
+		return "", errors.New("Invalid key size. Key size must be 16 bytes.")
+	}
 
 	// Create a new AES-128 block cipher with key
 	block, err := aes.NewCipher(key)

@@ -25,6 +25,8 @@ import android.preference.PreferenceManager
 import android.text.Editable
 import android.text.TextWatcher
 import android.widget.TextView
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,7 +37,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var buttonSend: Button
 
     private lateinit var textViewResponse: TextView
-
 
     private lateinit var sharedPreferences: SharedPreferences
 
@@ -108,16 +109,28 @@ class MainActivity : AppCompatActivity() {
             override fun afterTextChanged(s: Editable?) {}
         })
 
+
         buttonSend.setOnClickListener {
 
-            val userKey = editTextKey.text.toString()
+            //val userKey = editTextKey.text.toString().trim()
+            val userKey = editTextKey.text.toString().trimEnd()
             val userName = editTextName.text.toString()
             val serverName = editTextServerName.text.toString()
             val serverPortStr = editTextServerPort.text.toString()
 
             if (userName.isNotBlank() && serverName.isNotBlank() && serverPortStr.isNotBlank() && userKey.isNotBlank()) {
                 val serverPort = serverPortStr.toInt()
-                sendUdpPacket(userName, userKey, serverName, serverPort)
+
+                val timestamp = System.currentTimeMillis()
+                val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                val formattedDate = sdf.format(Date(timestamp))
+                //println(formattedDate) // Output: 2023-10-01 20:45:02
+
+                val messageToEncrypt = "Beken Android $formattedDate"
+
+                val encryptedMessage = AESUtils.encrypt(messageToEncrypt, userKey).trim()
+
+                sendUdpPacket(userName, encryptedMessage, serverName, serverPort)
             } else {
                 Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
             }
@@ -126,13 +139,17 @@ class MainActivity : AppCompatActivity() {
 
 
 
-    private fun sendUdpPacket(userName: String, userKey: String, serverName: String, serverPort: Int) {
+    private fun sendUdpPacket(userName: String, encryptedMessage: String, serverName: String, serverPort: Int) {
         // Use a coroutine to perform the network operation on a background thread
         GlobalScope.launch(Dispatchers.IO) {
             try {
                 val udpSocket = DatagramSocket()
                 val serverAddress = InetAddress.getByName(serverName)
-                val message = "Hello Android $userName $userKey"
+                //val message = "Hello Android $userName $userKey"
+                val message = "$userName A1 $encryptedMessage"
+                //val message = "PUBLIC_KEY"
+                //val message = "$userName $userKey"
+
                 val sendData = message.toByteArray()
                 val packet = DatagramPacket(sendData, sendData.size, serverAddress, serverPort)
                 udpSocket.send(packet)
@@ -155,7 +172,8 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     if (serverResponse.isNotEmpty()) {
                         // Display the server response in the TextView
-                        textViewResponse.text = "Server Response: $serverResponse"
+                        //textViewResponse.text = "Server Response: $serverResponse"
+                        textViewResponse.text = "$serverResponse"
                     } else {
                         // Display "No response" in the TextView if the server response is empty
                         textViewResponse.text = "No response"
