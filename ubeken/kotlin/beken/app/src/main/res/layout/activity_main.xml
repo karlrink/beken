@@ -14,7 +14,7 @@
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
         android:autofillHints="Key"
-        android:hint="Enter Key"
+        android:hint="Key"
         android:inputType="textPassword" />
 
 
@@ -27,7 +27,7 @@
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
         android:autofillHints="Name"
-        android:hint="Enter Name" />
+        android:hint="Name" />
 
     <EditText
         android:id="@+id/editTextServerName"
@@ -37,7 +37,7 @@
         android:layout_marginLeft="16dp"
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
-        android:hint="Enter Server Name" />
+        android:hint="Server Name" />
 
     <EditText
         android:id="@+id/editTextServerPort"
@@ -47,7 +47,7 @@
         android:layout_marginLeft="16dp"
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
-        android:hint="Enter Server Port" />
+        android:hint="Server Port" />
 
     <Button
         android:id="@+id/buttonSend"
@@ -56,7 +56,7 @@
         android:layout_below="@id/editTextServerPort"
         android:layout_marginTop="16dp"
         android:layout_centerHorizontal="true"
-        android:text="Send UDP Packet" />
+        android:text="Send Beken" />
 
     <TextView
         android:id="@+id/textViewResponse"
@@ -66,5 +66,17 @@
         android:layout_centerHorizontal="true"
         android:layout_marginTop="33dp"
         android:textSize="18sp" />
+
+
+    <TextView
+        android:id="@+id/textViewVersion"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="16dp"
+        android:text="1.0.0"
+        android:textSize="16sp"
+        android:textColor="#000" />
 
 </RelativeLayout>

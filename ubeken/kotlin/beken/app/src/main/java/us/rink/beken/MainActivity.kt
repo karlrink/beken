@@ -38,10 +38,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var textViewResponse: TextView
 
-
     private lateinit var sharedPreferences: SharedPreferences
-
-//    private lateinit var secretKey: SecretKey
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -111,10 +108,6 @@ class MainActivity : AppCompatActivity() {
         })
 
 
-        // Generate a secret key
-        //secretKey = AESUtils.generateAESKey()
-
-
         buttonSend.setOnClickListener {
 
             //val userKey = editTextKey.text.toString().trim()
@@ -132,12 +125,6 @@ class MainActivity : AppCompatActivity() {
                 //println(formattedDate) // Output: 2023-10-01 20:45:02
 
                 val messageToEncrypt = "Beken Android $formattedDate"
-                //val encryptedMessage = AESUtils.encrypt(messageToEncrypt, secretKey)
-                //val encryptedMessage = AESUtils.encrypt(messageToEncrypt, userKey).trim()
-
-                //val encryptedMessage = KESUtils.xorEncrypt(messageToEncrypt, userKey)
-
-                //val encryptedMessage = KESUtils.xorEncrypt(messageToEncrypt, userKey)
 
                 val encryptedMessage = AESUtils.encrypt(messageToEncrypt, userKey).trim()
 
