@@ -4,11 +4,17 @@ import android.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 object AESUtils {
     private const val AES_ALGORITHM = "AES"
-    private const val AES_TRANSFORMATION = "AES/CBC/PKCS5Padding"
+    //private const val AES_TRANSFORMATION = "AES/CBC/PKCS5Padding"
+    private const val AES_TRANSFORMATION = "AES/CBC/PKCS7Padding"
+
+    // Use a fixed IV (all zero bytes)
+    private val fixedIV = ByteArray(16) // Assuming a 16-byte IV for AES/CBC
+
 
     fun generateAESKey(): SecretKey {
         val keygen = KeyGenerator.getInstance(AES_ALGORITHM)
@@ -35,9 +41,13 @@ object AESUtils {
         // Convert the userKey string to a SecretKey
         val secretKey = stringToSecretKey(userKey)
 
+        // Create an IvParameterSpec with a fixed IV
+        val ivSpec = IvParameterSpec(fixedIV)
+
+
         // Perform encryption
         val cipher = Cipher.getInstance(AES_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, ivSpec)
         val encryptedBytes = cipher.doFinal(text.toByteArray())
         return Base64.encodeToString(encryptedBytes, Base64.DEFAULT)
         //return Base64.encodeToString(encryptedBytes, Base64.NO_WRAP)

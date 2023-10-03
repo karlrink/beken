@@ -137,7 +137,9 @@ class MainActivity : AppCompatActivity() {
 
                 //val encryptedMessage = KESUtils.xorEncrypt(messageToEncrypt, userKey)
 
-                val encryptedMessage = KESUtils.xorEncrypt(messageToEncrypt, userKey)
+                //val encryptedMessage = KESUtils.xorEncrypt(messageToEncrypt, userKey)
+
+                val encryptedMessage = AESUtils.encrypt(messageToEncrypt, userKey).trim()
 
                 sendUdpPacket(userName, encryptedMessage, serverName, serverPort)
             } else {
@@ -155,7 +157,7 @@ class MainActivity : AppCompatActivity() {
                 val udpSocket = DatagramSocket()
                 val serverAddress = InetAddress.getByName(serverName)
                 //val message = "Hello Android $userName $userKey"
-                val message = "$userName X $encryptedMessage"
+                val message = "$userName A1 $encryptedMessage"
                 //val message = "PUBLIC_KEY"
                 //val message = "$userName $userKey"
 
@@ -181,7 +183,8 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     if (serverResponse.isNotEmpty()) {
                         // Display the server response in the TextView
-                        textViewResponse.text = "Server Response: $serverResponse"
+                        //textViewResponse.text = "Server Response: $serverResponse"
+                        textViewResponse.text = "$serverResponse"
                     } else {
                         // Display "No response" in the TextView if the server response is empty
                         textViewResponse.text = "No response"

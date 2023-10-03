@@ -25,7 +25,7 @@ import (
 	"ubeken/kes"
 )
 
-var version = "1.0.0.🎃-2023-10-01"
+var version = "1.0.0.🎃-2023-10-02"
 
 func usage() {
 
@@ -302,49 +302,12 @@ func main() {
 					}
 					log.Println("Sent response " + host)
 
-				case "AN1": //android
-
-					// Verify decrypted
-					pattern := `^Beken`
-
-					// Compile the regular expression pattern
-					re := regexp.MustCompile(pattern)
-
-					// Use FindString to check if the string starts with "Beken"
-					if re.FindString(decrypted) != "Beken" {
-						log.Println("Failed decrypt Beken " + host)
-						return
-					}
-
-					var inDB string
-					// Save the IP to the database
-					_, err := db.Exec("INSERT INTO ips (Name, Data) VALUES (?, ?)", host, field1)
-					if err != nil {
-						inDB = "True"
-						log.Printf("Failed to save IP to database: %v\n", err)
-					} else {
-						inDB = "New"
-						log.Println("Isert IP " + host)
-					}
-
-					// Send a response back to the client
-					response := host + " android " + inDB
-
-					_, err_response := conn.WriteToUDP([]byte(response), clientAddr)
-					if err_response != nil {
-						log.Printf("Error sending response to client: %v\n", err_response)
-					}
-					log.Println("Sent response " + host)
-
 				default:
 					log.Println("code not found: " + field2 + " " + host)
-					return
 
 				}
 
 			}
-			//log.Println("Does not exist in the database " + host + " " + data)
-			//return
 
 		}(receivedData, addr)
 	}
@@ -470,8 +433,8 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 	case "A1": //aes128
 		//field1 := str[0] //name
 		//field2 := str[1] //code
-		//field3 := str[2] //cypher
-		//field4 := str[3] //iv
+		//field3 := str[2] //cypher //AES/CBC/PKCS7Padding
+		//field4 := str[3] //iv     //fixed IV (all zero bytes)
 
 		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM aes_keys WHERE Name = ?), Data FROM aes_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
 		if err_query != nil {
@@ -481,33 +444,6 @@ func existsAndDecrypts(db *sql.DB, dataStr string) (bool, string) {
 		PrintDebug("Exists in db: " + field1)
 
 		decrypted, err := decryptAES128(field3, key)
-		if err != nil {
-			log.Printf("Error decrypt aes128: %v\n", err)
-			return false, ""
-		}
-
-		return exists, decrypted
-
-	case "AN1":
-		//field1 := str[0] //name
-		//field2 := str[1] //code
-		//field3 := str[2] //cypher
-
-		err_query := db.QueryRow("SELECT EXISTS (SELECT 1 FROM aes_keys WHERE Name = ?), Data FROM aes_keys WHERE Name = ?", field1, field1).Scan(&exists, &key)
-		if err_query != nil {
-			log.Println("Error QueryRow database:", err_query)
-			return false, ""
-		}
-		PrintDebug("Exists in db: " + field1)
-
-		/*
-			decrypted := kes.XorDecrypt(field3, key)
-			if decrypted == "" {
-				log.Println("Error decrypt: empty")
-				return false, ""
-			}
-		*/
-		decrypted, err := decryptAES_128(field3, key)
 		if err != nil {
 			log.Printf("Error decrypt aes128: %v\n", err)
 			return false, ""
@@ -746,6 +682,7 @@ func decryptAESGCM(base64Cipher, base64Nonce, base64Tag, keyStr string) (string,
 	return string(plainText), nil
 }
 
+// Decrypts an AES-128 encrypted message using the provided base64 encoded ciphertext and key.
 func decryptAES128(base64Cipher, keyStr string) (string, error) {
 	// Decode the Base64 string to []byte
 	cipherText, err := base64.StdEncoding.DecodeString(base64Cipher)
@@ -755,6 +692,11 @@ func decryptAES128(base64Cipher, keyStr string) (string, error) {
 	}
 
 	key := []byte(keyStr)
+
+	// Check if the key size is valid for AES-128 (16 bytes)
+	if len(key) != 16 {
+		return "", errors.New("Invalid key size. Key size must be 16 bytes.")
+	}
 
 	// Create a new AES-128 block cipher with key
 	block, err := aes.NewCipher(key)
@@ -782,59 +724,6 @@ func decryptAES128(base64Cipher, keyStr string) (string, error) {
 	// Convert the plaintext to a string and return it
 	decryptedStr := string(decryptedText)
 	//log.Println("Decrypted Text:", decryptedStr)
-
-	return decryptedStr, nil
-}
-
-// Decrypts an AES-128 encrypted message using the provided base64 encoded ciphertext and key.
-func decryptAES_128(base64Cipher, keyStr string) (string, error) {
-	// Decode the Base64 string to []byte
-	cipherText, err := base64.StdEncoding.DecodeString(base64Cipher)
-	if err != nil {
-		log.Println("Error decoding ciphertext:", err)
-		return "", err
-	}
-
-	key := []byte(keyStr)
-
-	// Check if the key size is valid for AES-128 (16 bytes)
-	if len(key) != 16 {
-		return "", errors.New("Invalid key size. Key size must be 16 bytes.")
-	}
-
-	// Create a new AES-128 block cipher with the key
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		log.Println("Error creating AES cipher:", err)
-		return "", err
-	}
-
-	// Use a fixed IV (all zero bytes) for decryption
-	iv := make([]byte, aes.BlockSize)
-
-	// Initialize the decryption mode with the IV
-	decrypter := cipher.NewCBCDecrypter(block, iv)
-
-	// Decrypt the ciphertext
-	decryptedText := make([]byte, len(cipherText))
-	decrypter.CryptBlocks(decryptedText, cipherText)
-
-	/*
-		// Remove PKCS7 padding (if used during encryption)
-		padding := int(decryptedText[len(decryptedText)-1])
-		if padding > 0 && padding <= aes.BlockSize {
-			decryptedText = decryptedText[:len(decryptedText)-padding]
-		}
-	*/
-
-	// PKCS5Padding removal
-	padding := int(decryptedText[len(decryptedText)-1])
-	if padding > 0 && padding <= aes.BlockSize {
-		decryptedText = decryptedText[:len(decryptedText)-padding]
-	}
-
-	// Convert the plaintext to a string and return it
-	decryptedStr := string(decryptedText)
 
 	return decryptedStr, nil
 }
