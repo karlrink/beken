@@ -112,6 +112,13 @@ class MainActivity : AppCompatActivity() {
 
             //val userKey = editTextKey.text.toString().trim()
             val userKey = editTextKey.text.toString().trimEnd()
+
+            if (userKey.length != 16) {
+                Toast.makeText(this, "Invalid key length. Key length must be 16 characters.", Toast.LENGTH_SHORT).show()
+                //return
+                return@setOnClickListener // Return from the click listener lambda
+            }
+
             val userName = editTextName.text.toString()
             val serverName = editTextServerName.text.toString()
 
