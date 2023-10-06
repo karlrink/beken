@@ -28,6 +28,8 @@ import android.widget.TextView
 import java.text.SimpleDateFormat
 import java.util.Date
 
+import android.graphics.Color
+
 class MainActivity : AppCompatActivity() {
 
     private lateinit var editTextKey: EditText
@@ -40,8 +42,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var sharedPreferences: SharedPreferences
 
-
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -53,8 +53,6 @@ class MainActivity : AppCompatActivity() {
         textViewResponse = findViewById(R.id.textViewResponse)
 
         textViewResponse.text = "None"
-
-
 
         editTextKey = findViewById(R.id.editTextKey)
         editTextName = findViewById(R.id.editTextName)
@@ -116,9 +114,11 @@ class MainActivity : AppCompatActivity() {
             val userKey = editTextKey.text.toString().trimEnd()
             val userName = editTextName.text.toString()
             val serverName = editTextServerName.text.toString()
+
             val serverPortStr = editTextServerPort.text.toString()
 
             if (userName.isNotBlank() && serverName.isNotBlank() && serverPortStr.isNotBlank() && userKey.isNotBlank()) {
+
                 val serverPort = serverPortStr.toInt()
 
                 val timestamp = System.currentTimeMillis()
@@ -140,15 +140,24 @@ class MainActivity : AppCompatActivity() {
 
 
     private fun sendUdpPacket(userName: String, encryptedMessage: String, serverName: String, serverPort: Int) {
+
+        // Check if the serverPortStr string contains a valid numeric value.
+        val serverPortStr = editTextServerPort.text.toString()
+        try {
+            val serverPort = Integer.parseInt(serverPortStr)
+        } catch (e: NumberFormatException) {
+            // Display an error message to the user and return from the function.
+            Toast.makeText(this, "Invalid server port", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         // Use a coroutine to perform the network operation on a background thread
         GlobalScope.launch(Dispatchers.IO) {
             try {
                 val udpSocket = DatagramSocket()
                 val serverAddress = InetAddress.getByName(serverName)
-                //val message = "Hello Android $userName $userKey"
+
                 val message = "$userName A1 $encryptedMessage"
-                //val message = "PUBLIC_KEY"
-                //val message = "$userName $userKey"
 
                 val sendData = message.toByteArray()
                 val packet = DatagramPacket(sendData, sendData.size, serverAddress, serverPort)
@@ -174,9 +183,11 @@ class MainActivity : AppCompatActivity() {
                         // Display the server response in the TextView
                         //textViewResponse.text = "Server Response: $serverResponse"
                         textViewResponse.text = "$serverResponse"
+                        textViewResponse.setTextColor(Color.GREEN)
                     } else {
                         // Display "No response" in the TextView if the server response is empty
                         textViewResponse.text = "No response"
+                        textViewResponse.setTextColor(Color.RED)
                     }
                 }
             } catch (e: Exception) {
@@ -187,6 +198,7 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@MainActivity, "Error sending/receiving UDP packet: ${e.message}", Toast.LENGTH_SHORT).show()
                     textViewResponse.text = "No response"
+                    textViewResponse.setTextColor(Color.RED)
                 }
             }
         }
