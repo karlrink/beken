@@ -16,7 +16,12 @@
         android:autofillHints="Key"
         android:hint="Key"
         android:inputType="textPassword"
-        android:minHeight="48dp" />
+        android:minHeight="48dp"
+        android:textSize="18sp"
+        android:textColor="#000"
+        android:textColorHint="#000"
+        android:textStyle="bold"
+        />
 
 
     <EditText
@@ -29,7 +34,12 @@
         android:layout_marginRight="16dp"
         android:autofillHints="Name"
         android:hint="Name"
-        android:minHeight="48dp" />
+        android:minHeight="48dp"
+        android:textSize="18sp"
+        android:textColor="#000"
+        android:textColorHint="#000"
+        android:textStyle="bold"
+        />
 
     <EditText
         android:id="@+id/editTextServerName"
@@ -40,7 +50,12 @@
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
         android:hint="Server Name"
-        android:minHeight="48dp" />
+        android:minHeight="48dp"
+        android:textSize="18sp"
+        android:textColor="#000"
+        android:textColorHint="#000"
+        android:textStyle="bold"
+        />
 
     <EditText
         android:id="@+id/editTextServerPort"
@@ -52,7 +67,12 @@
         android:layout_marginRight="16dp"
         android:hint="Server Port"
         android:inputType="number"
-        android:minHeight="48dp" />
+        android:minHeight="48dp"
+        android:textSize="18sp"
+        android:textColor="#000"
+        android:textColorHint="#000"
+        android:textStyle="bold"
+        />
 
     <Button
         android:id="@+id/buttonSend"
