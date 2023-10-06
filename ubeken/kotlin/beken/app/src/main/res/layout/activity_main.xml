@@ -15,7 +15,8 @@
         android:layout_marginRight="16dp"
         android:autofillHints="Key"
         android:hint="Key"
-        android:inputType="textPassword" />
+        android:inputType="textPassword"
+        android:minHeight="48dp" />
 
 
     <EditText
@@ -27,7 +28,8 @@
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
         android:autofillHints="Name"
-        android:hint="Name" />
+        android:hint="Name"
+        android:minHeight="48dp" />
 
     <EditText
         android:id="@+id/editTextServerName"
@@ -37,7 +39,8 @@
         android:layout_marginLeft="16dp"
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
-        android:hint="Server Name" />
+        android:hint="Server Name"
+        android:minHeight="48dp" />
 
     <EditText
         android:id="@+id/editTextServerPort"
@@ -47,7 +50,9 @@
         android:layout_marginLeft="16dp"
         android:layout_marginTop="16dp"
         android:layout_marginRight="16dp"
-        android:hint="Server Port" />
+        android:hint="Server Port"
+        android:inputType="number"
+        android:minHeight="48dp" />
 
     <Button
         android:id="@+id/buttonSend"
@@ -75,7 +80,7 @@
         android:layout_centerHorizontal="true"
         android:layout_alignParentBottom="true"
         android:layout_marginBottom="16dp"
-        android:text="1.0.0"
+        android:text="1.0"
         android:textSize="16sp"
         android:textColor="#000" />
 
